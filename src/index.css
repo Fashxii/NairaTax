@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-primary: #001b0f;
+  --color-primary-container: #013220;
+  --color-on-primary-container: #6f9c84;
+  --color-accent-green: #4ade80;
+  --color-surface-tint: #3b6751;
+  --color-background: #f9f9f9;
+  --color-surface: #f9f9f9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f3;
+  --color-surface-container: #eeeeee;
+  --color-on-surface: #1a1c1c;
+  --color-on-surface-variant: #414943;
+  --color-outline: #717973;
+  --color-outline-variant: #c1c8c2;
+}
+
+/* High-Contrast Twilight Dark Mode Overrides */
+.dark {
+  --color-primary: #4ade80;
+  --color-primary-container: #102e21;
+  --color-on-primary-container: #a7f3d0;
+  --color-accent-green: #4ade80;
+  --color-surface-tint: #163e2d;
+  --color-background: #060907;
+  --color-surface: #060907;
+  --color-surface-container-lowest: #0d120f;
+  --color-surface-container-low: #151c18;
+  --color-surface-container: #1d2721;
+  --color-on-surface: #f1f5f3;
+  --color-on-surface-variant: #cbd5e1;
+  --color-outline: #64748b;
+  --color-outline-variant: #2d3a31;
+  
+  color-scheme: dark;
+}
+
+/* Map standard solid color elements to dark mode variants for seamless dark mode */
+.dark .bg-white,
+.dark .bg-white\/95 {
+  background-color: var(--color-surface-container-lowest) !important;
+}
+
+.dark .bg-background {
+  background-color: var(--color-background) !important;
+}
+
+.dark .text-\[\#013220\],
+.dark .text-primary-container {
+  color: var(--color-primary) !important;
+}
+
+.dark .bg-\[\#013220\],
+.dark .bg-primary-container {
+  background-color: var(--color-primary-container) !important;
+  color: var(--color-on-primary-container) !important;
+}
+
+.dark .hover\:bg-\[\#013220\]\/90:hover {
+  background-color: rgba(74, 222, 128, 0.9) !important;
+}
+
+.dark .border-\[\#013220\] {
+  border-color: var(--color-primary) !important;
+}
+
+.dark .border-primary-container {
+  border-color: var(--color-primary) !important;
+}
+
+.dark .text-amber-700 {
+  color: #f59e0b !important; /* warm amber for readability */
+}
+
+.dark .text-emerald-700 {
+  color: #34d399 !important; /* clear emerald for readability */
+}
+
+.dark .text-red-700 {
+  color: #f87171 !important; /* light red */
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.dark .text-green-800 {
+  color: #34d399 !important;
+}
+
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.dark .border-outline-variant\/60 {
+  border-color: rgba(45, 58, 49, 0.6) !important;
+}
+
+.dark .border-outline-variant\/50 {
+  border-color: rgba(45, 58, 49, 0.5) !important;
+}
+
+.dark .border-outline-variant\/40 {
+  border-color: rgba(45, 58, 49, 0.4) !important;
+}
+
+.dark .border-outline-variant\/30 {
+  border-color: rgba(45, 58, 49, 0.3) !important;
+}
+
