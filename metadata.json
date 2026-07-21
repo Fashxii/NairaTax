@@ -1,5 +1,5 @@
 {
-  "name": "NairaTax",
+  "name": "DIYtax9ja",
   "description": "Nigerian Tax Compliance and Identity Link Portal. Easily link your NIN, calculate your Personal Income Tax, and manage your tax filings securely.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
