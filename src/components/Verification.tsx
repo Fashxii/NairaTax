@@ -138,7 +138,7 @@ export default function Verification({ contactMethod, onBack, onVerify }: Verifi
             </div>
             <div>
               <p className="text-xs font-semibold text-[#4ADE80] uppercase tracking-wider">Access Verification Code</p>
-              <p className="text-sm font-bold tracking-widest">{simulatedCode} is your NairaTax OTP.</p>
+              <p className="text-sm font-bold tracking-widest">{simulatedCode} is your DIYtax9ja OTP.</p>
             </div>
           </div>
           <button 
@@ -165,7 +165,7 @@ export default function Verification({ contactMethod, onBack, onVerify }: Verifi
             <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
             <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
           </svg>
-          <span className="font-bold text-primary-container text-lg">NairaTax</span>
+          <span className="font-bold text-primary-container text-lg">DIYtax9ja</span>
         </div>
         <div className="w-10"></div> {/* Spacer for symmetry */}
       </header>
@@ -267,7 +267,7 @@ export default function Verification({ contactMethod, onBack, onVerify }: Verifi
           </div>
           <h3 className="text-base font-bold text-primary-container">Multi-Factor Security</h3>
           <p className="text-xs text-on-surface-variant leading-relaxed">
-            NairaTax uses bank-grade 256-bit encryption for all identity verifications, ensuring your tax records remain private and accessible only to verified citizens.
+            DIYtax9ja uses bank-grade 256-bit encryption for all identity verifications, ensuring your tax records remain private and accessible only to verified citizens.
           </p>
         </aside>
 
@@ -275,7 +275,7 @@ export default function Verification({ contactMethod, onBack, onVerify }: Verifi
 
       {/* Footer Identity */}
       <footer className="mt-auto pt-12 text-center text-xs text-on-surface-variant/50 w-full border-t border-outline-variant/20">
-        © 2026 NairaTax. Nigerian Data Protection Regulation (NDPR) Compliant.
+        © 2026 DIYtax9ja. Nigerian Data Protection Regulation (NDPR) Compliant.
       </footer>
     </motion.div>
   );

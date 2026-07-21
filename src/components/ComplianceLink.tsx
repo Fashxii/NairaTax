@@ -53,7 +53,7 @@ export default function ComplianceLink({ onLink, onSkip }: ComplianceLinkProps) 
             <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
             <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
           </svg>
-          <span className="font-bold text-primary-container">NairaTax</span>
+          <span className="font-bold text-primary-container">DIYtax9ja</span>
         </div>
         <span className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase bg-surface-container px-3 py-1.5 rounded-full border border-outline-variant/30">
           STEP 2 OF 2

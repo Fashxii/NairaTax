@@ -5,10 +5,17 @@ import {
   LogOut, ShieldAlert, BadgeAlert, ShieldCheck, Download, ExternalLink, 
   Send, HelpCircle, FileText, Info, ArrowUpRight, Scale, CheckCircle2,
   Bell, Camera, Check, Upload, X, ArrowRight, ChevronRight, Sparkles, RefreshCw,
-  TrendingUp, Calendar, Sun, Moon
+  TrendingUp, Calendar, Sun, Moon, Users
 } from 'lucide-react';
 import { UserSession, DashboardTab, TaxFiling, TaxCalculationResult } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
+import CMSManager from './CMSManager';
+import InvoiceManager from './InvoiceManager';
+import TCCDashboard from './TCCDashboard';
+import PayrollManager from './PayrollManager';
+import BankSyncPanel from './BankSyncPanel';
+import TaxSavingsInsights from './TaxSavingsInsights';
+import { useContent } from '../context/ContentContext';
 
 interface DashboardProps {
   session: UserSession;
@@ -110,6 +117,7 @@ const INITIAL_TRANSACTIONS: SyncTransaction[] = [
 ];
 
 export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggleTheme }: DashboardProps) {
+  const { content } = useContent();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [filings, setFilings] = useState<TaxFiling[]>(INITIAL_FILINGS);
   const [transactions, setTransactions] = useState<SyncTransaction[]>(INITIAL_TRANSACTIONS);
@@ -181,7 +189,7 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
   const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'assistant'; text: string }[]>([
     { 
       sender: 'assistant', 
-      text: `Hello! I am your virtual NairaTax Advisor. Ask me anything about the new Nigerian Tax Implementation, deadlines, the National Identification Number (NIN-TIN) integration, or Personal Income Tax rates.` 
+      text: content.dashboard.advisorIntroText
     }
   ]);
   const [chatInput, setChatInput] = useState('');
@@ -233,9 +241,9 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
     wht: "Withholding Tax (WHT) is an advance payment of income tax. In Nigeria, it is deducted at source from payments made to a contractor or supplier at rates ranging from 2.5% to 10% depending on the transaction type. This is later utilized as tax credit to offset the taxpayer's final annual liabilities.",
     cit: "Company Income Tax (CIT) is levied on corporate profits. Small companies (under N25m turnover) are 100% exempt from CIT. Medium companies (N25m - N100m) pay 20%, while large companies (above N100m turnover) pay 30% CIT. Personal Income Tax (PIT) applies to individuals and is computed on a progressive scale up to 24%.",
     lifeAssur: "Under Section 33 of the Personal Income Tax Act (PITA), premiums paid on life assurance policies for yourself or your spouse are fully tax-deductible. This acts as an allowable relief that reduces your total taxable income, lowering your overall annual liability.",
-    tcc: "A Tax Clearance Certificate (TCC) is the official proof issued by the tax authority (FIRS or SBIR) certifying that you have fully paid your taxes for the preceding 3 years. It is required for government contracts, land transactions, visa applications, and banking credit approvals. NairaTax allows automated e-filing to fast-track your TCC download.",
+    tcc: "A Tax Clearance Certificate (TCC) is the official proof issued by the tax authority (FIRS or SBIR) certifying that you have fully paid your taxes for the preceding 3 years. It is required for government contracts, land transactions, visa applications, and banking credit approvals. DIYtax9ja allows automated e-filing to fast-track your TCC download.",
     pension: "Contributions to the National Pension Scheme (up to 8% employee contribution) or approved voluntary pension schemes are 100% tax-exempt. Utilizing voluntary pension contributions is one of the most effective and legally approved methods to lower your PIT taxable base.",
-    childrenRelief: "Under Section 33(3) of the Personal Income Tax Act (PITA), you are entitled to a Child Allowance relief of ₦2,500 per unmarried child, up to a maximum of four children (under 16 years, or in full-time education). In NairaTax, we automatically track this statutory deduction to lower your chargeable income.",
+    childrenRelief: "Under Section 33(3) of the Personal Income Tax Act (PITA), you are entitled to a Child Allowance relief of ₦2,500 per unmarried child, up to a maximum of four children (under 16 years, or in full-time education). In DIYtax9ja, we automatically track this statutory deduction to lower your chargeable income.",
     dependantRelief: "Dependant Relative Relief allows an annual tax-exempt deduction of ₦2,000 for each incapacitated or elderly dependant relative, up to a maximum of two relatives (maximum ₦4,000). While historically small, it remains a statutory right that taxpayers can declare.",
     disabledRelief: "Disabled Person's Special Relief provides an additional tax-exempt allowance of ₦3,000 or 20% of Gross Income (whichever is higher) for individuals with certified physical or mental disabilities. This relief is deducted from your gross income prior to applying the progressive tax bands.",
     mortgageInterestRelief: "Under PITA Section 33, any interest paid on mortgage loans taken out for owner-occupying, purchasing, or constructing a residential house is 100% tax-exempt. This provides immense relief for homeowners by significantly reducing their taxable income base.",
@@ -631,7 +639,7 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
                 <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
                 <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
               </svg>
-              <span className="font-extrabold text-primary-container text-lg tracking-tight">NairaTax</span>
+              <span className="font-extrabold text-primary-container text-lg tracking-tight">DIYtax9ja</span>
             </div>
             
             <button
@@ -727,6 +735,56 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
             >
               <Settings className="w-4.5 h-4.5" />
               <span>User Profile</span>
+            </button>
+
+            {accountMode === 'business' && (
+              <button
+                onClick={() => { setActiveTab('payroll'); setIsFilingFlow(false); }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  activeTab === 'payroll'
+                    ? 'bg-primary-container/10 text-primary-container font-bold border-l-4 border-l-primary-container rounded-l-none'
+                    : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-primary-container'
+                }`}
+              >
+                <Users className="w-4.5 h-4.5" />
+                <span>Payroll & PAYE</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => { setActiveTab('tcc'); setIsFilingFlow(false); }}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                activeTab === 'tcc'
+                  ? 'bg-primary-container/10 text-primary-container font-bold border-l-4 border-l-primary-container rounded-l-none'
+                  : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-primary-container'
+              }`}
+            >
+              <ShieldCheck className="w-4.5 h-4.5" />
+              <span>TCC Readiness</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('invoicing'); setIsFilingFlow(false); }}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                activeTab === 'invoicing'
+                  ? 'bg-primary-container/10 text-primary-container font-bold border-l-4 border-l-primary-container rounded-l-none'
+                  : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-primary-container'
+              }`}
+            >
+              <FileText className="w-4.5 h-4.5" />
+              <span>E-Invoicing</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('cms'); setIsFilingFlow(false); }}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                activeTab === 'cms'
+                  ? 'bg-primary-container/10 text-primary-container font-bold border-l-4 border-l-primary-container rounded-l-none'
+                  : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-primary-container'
+              }`}
+            >
+              <LayoutDashboard className="w-4.5 h-4.5" />
+              <span>CMS Admin</span>
             </button>
           </nav>
         </div>
@@ -1084,7 +1142,34 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
         ) : (
           /* STANDARD TABS FLOWS */
           <>
-            {activeTab === 'overview' && (
+            {!isFilingFlow && activeTab === 'settings' && (
+              <div className="text-left space-y-6">
+                <h2 className="text-2xl font-black text-primary-container">User Profile & Settings</h2>
+                <p className="text-sm text-on-surface-variant">Manage your account credentials, linked identities, and preferences.</p>
+                <div className="bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-xs">
+                  <Settings className="w-12 h-12 text-on-surface-variant/40" />
+                  <p className="text-sm font-semibold text-on-surface-variant">Settings interface is under construction.</p>
+                </div>
+              </div>
+            )}
+
+            {!isFilingFlow && activeTab === 'cms' && (
+              <CMSManager />
+            )}
+
+            {!isFilingFlow && activeTab === 'invoicing' && (
+              <InvoiceManager />
+            )}
+
+            {!isFilingFlow && activeTab === 'tcc' && (
+              <TCCDashboard filings={filings} />
+            )}
+
+            {!isFilingFlow && activeTab === 'payroll' && (
+              <PayrollManager />
+            )}
+
+            {!isFilingFlow && activeTab === 'overview' && (
               <motion.section
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1093,7 +1178,7 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
                 {/* Greeting Area */}
                 <div>
                   <h2 className="text-2xl font-black text-primary-container tracking-tight">
-                    Hello, {currentTaxpayerName}
+                    {content.dashboard.welcomeGreeting}, {currentTaxpayerName}
                   </h2>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse"></span>
@@ -1105,6 +1190,25 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
                     <span className="text-[10px] font-bold text-primary-container uppercase tracking-widest">
                       {session.isNINLinked ? 'Status: Fully Compliant (FY2026)' : 'Status: Identity Unlinked'}
                     </span>
+                  </div>
+                </div>
+
+                {/* Financial Summary & Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Gamified Tax Savings (Phase 4) */}
+                  <div className="col-span-1 lg:col-span-2">
+                    <TaxSavingsInsights 
+                      savingsAmount={125000} 
+                      filingStreak={3} 
+                      percentileRank={15} 
+                    />
+                  </div>
+
+                  {/* Bank Sync Panel (Phase 4) */}
+                  <div className="col-span-1 lg:col-span-2">
+                    <BankSyncPanel onTransactionsSynced={(count, amount) => {
+                      console.log(`Synced ${count} transactions totaling ${amount}`);
+                    }} />
                   </div>
                 </div>
 
@@ -2376,7 +2480,7 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
                         AI
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider">NairaTax Virtual Assistant</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-wider">DIYtax9ja Virtual Assistant</h4>
                         <p className="text-[10px] text-neutral-300">Compliance &amp; statutory advisor active</p>
                       </div>
                     </div>

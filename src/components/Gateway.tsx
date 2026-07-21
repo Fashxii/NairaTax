@@ -7,6 +7,7 @@ import {
   Sun, Moon
 } from 'lucide-react';
 import { AccountType } from '../types';
+import { useContent } from '../context/ContentContext';
 
 interface GatewayProps {
   onNext: (accountType: AccountType, contactMethod: string) => void;
@@ -16,6 +17,7 @@ interface GatewayProps {
 }
 
 export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: GatewayProps) {
+  const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
   const [contactMethod, setContactMethod] = useState('');
   const [error, setError] = useState('');
@@ -47,7 +49,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
     // Standard basic tax rate (approx 12.5% for individual PIT)
     const standardAnnualTax = annualGross * 0.125;
     
-    // Optimized PIT with NairaTax (using CRA + 8% Pension + Life Assurance deductions)
+    // Optimized PIT with DIYtax9ja (using CRA + 8% Pension + Life Assurance deductions)
     // Approx effective rate goes down to ~7.2%
     const optimizedAnnualTax = annualGross * 0.072;
     
@@ -70,7 +72,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
     },
     {
       q: "How do I download my Tax Clearance Certificate (TCC)?",
-      a: "An official Tax Clearance Certificate (TCC) is issued by the FIRS or your State IRS (e.g. LIRS) once you successfully file and reconcile your tax records for the preceding 3 years. NairaTax fully automates the reconciliation, letting you apply for and download your official TCC instantly upon successful filing."
+      a: "An official Tax Clearance Certificate (TCC) is issued by the FIRS or your State IRS (e.g. LIRS) once you successfully file and reconcile your tax records for the preceding 3 years. DIYtax9ja fully automates the reconciliation, letting you apply for and download your official TCC instantly upon successful filing."
     },
     {
       q: "How does Company Income Tax (CIT) apply to small businesses?",
@@ -78,7 +80,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
     },
     {
       q: "Are voluntary pension and life assurance premium payments tax-exempt?",
-      a: "Yes! Under Section 33 of the Personal Income Tax Act (PITA), contributions to the National Pension Scheme (compulsory & voluntary), National Health Insurance Scheme (NHIS), National Housing Fund (NHF), and premiums paid on life assurance policies are 100% tax-deductible. NairaTax automatically applies these reliefs to reduce your net taxable income."
+      a: "Yes! Under Section 33 of the Personal Income Tax Act (PITA), contributions to the National Pension Scheme (compulsory & voluntary), National Health Insurance Scheme (NHIS), National Housing Fund (NHF), and premiums paid on life assurance policies are 100% tax-deductible. DIYtax9ja automatically applies these reliefs to reduce your net taxable income."
     }
   ];
 
@@ -96,14 +98,18 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
         <div className="flex items-center space-x-12 max-w-7xl mx-auto w-full">
           {/* Logo */}
           <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-10 h-10">
-              <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                <rect width="200" height="200" rx="44" fill="#013220"/>
-                <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-                <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span className="font-extrabold text-2xl text-primary-container tracking-tight">NairaTax</span>
+            {content.gateway.logoUrl ? (
+              <img src={content.gateway.logoUrl} alt="Logo" className="h-10 object-contain" />
+            ) : (
+              <div className="w-10 h-10">
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                  <rect width="200" height="200" rx="44" fill="#013220"/>
+                  <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
+                  <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
+            <span className="font-extrabold text-2xl text-primary-container tracking-tight">DIYtax9ja</span>
           </div>
 
           {/* Desktop Navigation Links */}
@@ -138,7 +144,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
               onClick={() => handleSmoothScroll('auth-portal')}
               className="bg-[#013220] text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer"
             >
-              File Tax Return
+              {content.gateway.navCtaText}
             </button>
           </div>
         </div>
@@ -161,13 +167,19 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
             </div>
 
             <h1 className="text-4xl md:text-5xl font-black tracking-tight text-primary-container leading-tight">
-              Nigerian Taxes. <br />
-              <span className="text-[#013220] underline decoration-accent-green decoration-4 underline-offset-8">Automated</span>, Simplified, 100% Compliant.
+              {content.gateway.heroTitleLine1} <br />
+              <span className="text-[#013220] underline decoration-accent-green decoration-4 underline-offset-8">{content.gateway.heroTitleLine2.split(',')[0]}</span>, {content.gateway.heroTitleLine2.split(',').slice(1).join(',')}
             </h1>
 
             <p className="text-base text-on-surface-variant leading-relaxed max-w-2xl">
-              File PIT & CIT, automatically scan receipts into Naira, unlock statutory deductions (pension, NHF, NHIS, life assurance), and authorize direct secure payments to the Nigerian Revenue Service in seconds.
+              {content.gateway.heroDescription}
             </p>
+
+            {content.gateway.heroImage && (
+              <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-lg my-4 border border-outline-variant/40">
+                <img src={content.gateway.heroImage} alt="Hero representation" className="w-full h-auto object-cover" />
+              </div>
+            )}
 
             {/* Quick trust proofs */}
             <div className="grid grid-cols-3 gap-4 py-4 border-y border-outline-variant/40">
@@ -192,13 +204,13 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                 className="flex-1 sm:flex-none h-13 px-6 bg-white border-2 border-[#013220] text-[#013220] font-bold rounded-xl hover:bg-surface-container/30 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs"
               >
                 <Sparkles className="w-5 h-5 text-accent-green" />
-                <span>Try Free Tax Planner</span>
+                <span>{content.gateway.heroCta1Text}</span>
               </button>
               <button 
                 onClick={() => handleSmoothScroll('savings-calc')}
                 className="flex-1 sm:flex-none h-13 px-6 bg-surface-container text-primary-container border border-outline-variant font-bold rounded-xl hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <span>Calculate Your Reliefs</span>
+                <span>{content.gateway.heroCta2Text}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -213,8 +225,8 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
               className="w-full bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-6 text-left"
             >
               <div>
-                <h3 className="text-xl font-bold tracking-tight text-primary-container">Secure Filing Portal</h3>
-                <p className="text-xs text-on-surface-variant mt-1">Enter your details to generate your official tax returns.</p>
+                <h3 className="text-xl font-bold tracking-tight text-primary-container">{content.gateway.portalTitle}</h3>
+                <p className="text-xs text-on-surface-variant mt-1">{content.gateway.portalSubtitle}</p>
               </div>
 
               {/* Segmented control for Individual vs Business */}
@@ -273,7 +285,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Secure One-Time Code</span>
+                      <span>{content.gateway.portalCtaText}</span>
                       <ArrowRight className="w-4 h-4 text-accent-green" />
                     </>
                   )}
@@ -288,7 +300,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                   onClick={() => onGuestDemo?.(accountType)}
                   className="text-xs font-bold text-[#013220] hover:underline flex items-center justify-center mx-auto space-x-1 cursor-pointer mt-1"
                 >
-                  <span>Quick Bypass: Explore Live Demo Dashboard</span>
+                  <span>{content.gateway.demoBypassText}</span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-accent-green" />
                 </button>
               </div>
@@ -362,7 +374,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                 <div className="absolute top-2 right-2 bg-accent-green text-[#013220] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
                   Optimized
                 </div>
-                <span className="text-[10px] font-bold text-primary-container uppercase tracking-wider">With NairaTax Reliefs</span>
+                <span className="text-[10px] font-bold text-primary-container uppercase tracking-wider">With DIYtax9ja Reliefs</span>
                 <p className="text-lg font-black font-mono text-primary-container mt-1">
                   ₦{estimates.optimizedMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs text-on-surface-variant font-normal">/ mo</span>
                 </p>
@@ -410,9 +422,9 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                 <div className="w-10 h-10 rounded-xl bg-primary-container/10 flex items-center justify-center text-primary-container">
                   <Camera className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-black text-primary-container pt-1">Smart Vault Receipt Scanner</h3>
+                <h3 className="text-lg font-black text-primary-container pt-1">{content.gateway.feature1Title}</h3>
                 <p className="text-xs text-on-surface-variant leading-relaxed max-w-md">
-                  Stop manually typing expenses. Drag-and-drop paper receipts, bank statements, or utility vouchers. Our scanner extracts quantities, VAT, and figures into Naira instantly.
+                  {content.gateway.feature1Desc}
                 </p>
               </div>
 
@@ -428,9 +440,9 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-accent-green">
                   <Calendar className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-black text-white pt-1">Dynamic Tax Planner</h3>
+                <h3 className="text-lg font-black text-white pt-1">{content.gateway.feature2Title}</h3>
                 <p className="text-xs text-neutral-300 leading-relaxed">
-                  Toggle what-if scenarios in real-time. Calculate exactly how voluntary pensions, life assurances, housing scheme deductions (NHF), and NHIS premiums impact your upcoming tax bands.
+                  {content.gateway.feature2Desc}
                 </p>
               </div>
 
@@ -491,7 +503,7 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
               <span className="font-extrabold text-base tracking-tight uppercase">Bank-Grade Compliance Security</span>
             </div>
             <p className="text-xs text-on-surface-variant leading-relaxed max-w-2xl">
-              NairaTax is built following bank-level 256-bit secure transport layers. All private NIN validations are performed in compliance with the Nigerian Data Protection Regulation (NDPR) act and certified under local statutory tax standards.
+              DIYtax9ja is built following bank-level 256-bit secure transport layers. All private NIN validations are performed in compliance with the Nigerian Data Protection Regulation (NDPR) act and certified under local statutory tax standards.
             </p>
           </div>
           <div className="md:col-span-4 flex justify-start md:justify-end space-x-4">
@@ -560,13 +572,13 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
                   <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
                 </svg>
               </div>
-              <span className="font-extrabold text-lg text-primary-container tracking-tight">NairaTax</span>
+              <span className="font-extrabold text-lg text-primary-container tracking-tight">DIYtax9ja</span>
             </div>
             <p className="text-xs text-on-surface-variant max-w-sm leading-relaxed">
               Automated, secure, and intuitive e-filing for Nigerian self-employed professionals, businesses, and taxpayers. Saving thousands of hours of manual compilation.
             </p>
             <p className="text-[10px] text-on-surface-variant/50">
-              © 2026 NairaTax. All rights reserved.
+              © 2026 DIYtax9ja. All rights reserved.
             </p>
           </div>
 

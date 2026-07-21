@@ -98,7 +98,7 @@ export default function TaxReceiptModal({ filing, session, onClose }: TaxReceipt
 
             {/* Verification Watermark */}
             <p className="text-[10px] text-on-surface-variant/70 leading-relaxed text-center">
-              This receipt is electronically compiled and secured under the Nigeria Unified Revenue Portal. Please check the receipt number on the official NairaTax verification portal to authenticate this transaction.
+              This receipt is electronically compiled and secured under the Nigeria Unified Revenue Portal. Please check the receipt number on the official DIYtax9ja verification portal to authenticate this transaction.
             </p>
           </div>
 
