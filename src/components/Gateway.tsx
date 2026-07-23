@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { AccountType } from '../types';
 import { useContent } from '../context/ContentContext';
+import { estimateSavings } from '../utils/taxEngine';
 
 interface GatewayProps {
   onNext: (accountType: AccountType, contactMethod: string) => void;
@@ -43,27 +44,8 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
     }, 1000);
   };
 
-  // Tax calculations based on slider values
-  const calculateEstimate = (income: number) => {
-    const annualGross = income * 12;
-    // Standard basic tax rate (approx 12.5% for individual PIT)
-    const standardAnnualTax = annualGross * 0.125;
-    
-    // Optimized PIT with DIYtax9ja (using CRA + 8% Pension + Life Assurance deductions)
-    // Approx effective rate goes down to ~7.2%
-    const optimizedAnnualTax = annualGross * 0.072;
-    
-    const annualSavings = Math.max(0, standardAnnualTax - optimizedAnnualTax);
-    
-    return {
-      standardMonthly: standardAnnualTax / 12,
-      optimizedMonthly: optimizedAnnualTax / 12,
-      monthlySavings: annualSavings / 12,
-      annualSavings: annualSavings
-    };
-  };
-
-  const estimates = calculateEstimate(monthlyIncome);
+  // Tax calculations based on slider values — uses shared engine
+  const estimates = estimateSavings(monthlyIncome);
 
   const faqs = [
     {
