@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Landmark, LayoutDashboard, Calculator, History, BookOpen, Settings, 
+  LayoutDashboard, Calculator, History, BookOpen, Settings, 
   LogOut, ShieldAlert, ShieldCheck, Download, 
-  Send, FileText, Info, ArrowUpRight, Scale, CheckCircle2,
-  Bell, Camera, Check, Upload, X, ArrowRight, ChevronRight, Sparkles, RefreshCw,
+  Send, FileText, Info,
+  Bell, Camera, Check, Upload, X, ArrowRight, Sparkles, RefreshCw,
   Calendar, Sun, Moon, Users
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
@@ -13,8 +13,8 @@ import CMSManager from './CMSManager';
 import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
-import { useContent } from '../context/ContentContext';
 import { useAppContext } from '../AppShell';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 // Extracted dashboard tab components
 import {
@@ -111,10 +111,9 @@ const INITIAL_TRANSACTIONS: SyncTransaction[] = [
 
 export default function Dashboard() {
   const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
-  const { content } = useContent();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  const [filings, setFilings] = useState<TaxFiling[]>(INITIAL_FILINGS);
-  const [transactions, setTransactions] = useState<SyncTransaction[]>(INITIAL_TRANSACTIONS);
+  const [filings, setFilings] = usePersistedState<TaxFiling[]>('filings', INITIAL_FILINGS);
+  const [transactions, setTransactions] = usePersistedState<SyncTransaction[]>('transactions', INITIAL_TRANSACTIONS);
   const [selectedFiling, setSelectedFiling] = useState<TaxFiling | null>(null);
 
   // Switcher account state ('personal' | 'business')
@@ -123,7 +122,7 @@ export default function Dashboard() {
   // Scanner modal states
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scanStep, setScanStep] = useState<'upload' | 'scanning' | 'result'>('upload');
-  const [scannedFile, setScannedFile] = useState<string | null>(null);
+  const [_scannedFile, setScannedFile] = useState<string | null>(null);
   const [selectedPresetReceipt, setSelectedPresetReceipt] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [scannedData, setScannedData] = useState<{
@@ -293,8 +292,16 @@ export default function Dashboard() {
       animate();
 
       window.addEventListener('resize', resize);
+
+      // Auto-stop confetti after 5 seconds
+      const stopTimer = setTimeout(() => {
+        cancelAnimationFrame(animationFrameId);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }, 5000);
+
       return () => {
         cancelAnimationFrame(animationFrameId);
+        clearTimeout(stopTimer);
         window.removeEventListener('resize', resize);
       };
     }
@@ -449,7 +456,7 @@ export default function Dashboard() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="space-y-1 px-3">
+          <nav className="space-y-1 px-3" role="tablist" aria-label="Dashboard navigation">
             {[
               { tab: 'overview' as DashboardTab, icon: LayoutDashboard, label: 'Tax Overview' },
               { tab: 'calculator' as DashboardTab, icon: Calculator, label: 'Quick Calculator' },
@@ -460,6 +467,8 @@ export default function Dashboard() {
             ].map(({ tab, icon: Icon, label }) => (
               <button
                 key={tab}
+                role="tab"
+                aria-selected={activeTab === tab && !isFilingFlow}
                 onClick={() => { setActiveTab(tab); setIsFilingFlow(false); }}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                   activeTab === tab && !isFilingFlow
@@ -565,7 +574,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <button className="material-symbols-outlined text-on-surface-variant hover:bg-secondary-container rounded-full p-2 transition-colors active:scale-95 cursor-pointer relative">
+            <button aria-label="Notifications" className="material-symbols-outlined text-on-surface-variant hover:bg-secondary-container rounded-full p-2 transition-colors active:scale-95 cursor-pointer relative">
               <Bell className="w-4.5 h-4.5" />
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full"></span>
             </button>
@@ -940,7 +949,7 @@ export default function Dashboard() {
       {/* RECEIPT SCANNER MODAL OVERLAY */}
       <AnimatePresence>
         {isScannerOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary-container/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary-container/40 backdrop-blur-xs" role="dialog" aria-modal="true" aria-label="Receipt Scanner">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

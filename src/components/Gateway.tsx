@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
-  ArrowRight, ShieldCheck, Landmark, Check, Sparkles, 
-  Calendar, Camera, MessageSquare, HelpCircle, ChevronDown, 
-  Zap, ArrowUpRight, CheckCircle, ShieldAlert, Award, FileText,
+  ArrowRight, ShieldCheck, Landmark, Sparkles, 
+  Calendar, Camera, MessageSquare, ChevronDown, 
+  ArrowUpRight, CheckCircle, Award, FileText,
   Sun, Moon
 } from 'lucide-react';
 import { AccountType } from '../types';
 import { useContent } from '../context/ContentContext';
 import { estimateSavings } from '../utils/taxEngine';
 import { useAppContext } from '../AppShell';
+import { validateContact, sanitize } from '../utils/validators';
 
 export default function Gateway() {
   const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemoCtx, theme, onToggleTheme } = useAppContext();
@@ -26,8 +27,10 @@ export default function Gateway() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactMethod.trim()) {
-      setError('Please enter your WhatsApp number or Email address.');
+    const cleaned = sanitize(contactMethod);
+    const result = validateContact(cleaned);
+    if (!result.valid) {
+      setError(result.error || 'Invalid input');
       return;
     }
     setError('');
@@ -36,7 +39,7 @@ export default function Gateway() {
     // Simulate network delay
     setTimeout(() => {
       setIsLoading(false);
-      onNext(accountType, contactMethod);
+      onNext(accountType, cleaned);
     }, 1000);
   };
 

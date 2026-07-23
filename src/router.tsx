@@ -6,7 +6,6 @@
  * for now (Phase 2 can add nested routes if needed).
  */
 
-import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AppShell from './AppShell';
 import Gateway from './components/Gateway';

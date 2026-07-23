@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, ShieldCheck, Landmark } from 'lucide-react';
 import { TaxFiling, UserSession } from '../types';

@@ -1,6 +1,5 @@
-import React from 'react';
 import { motion } from 'motion/react';
-import { Settings, ShieldCheck, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Sun, Moon } from 'lucide-react';
 import { UserSession } from '../../types';
 
 interface SettingsTabProps {

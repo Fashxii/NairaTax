@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -190,7 +190,7 @@ export default function Verification() {
               {code.map((digit, index) => (
                 <input
                   key={index}
-                  ref={(el) => (inputRefs.current[index] = el as HTMLInputElement)}
+                  ref={(el) => { if (el) inputRefs.current[index] = el; }}
                   type="text"
                   maxLength={1}
                   value={digit}

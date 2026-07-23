@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ShieldCheck, CheckCircle2, AlertTriangle, Clock, XCircle,
-  ArrowRight, Download, ExternalLink, ChevronRight, Sparkles, FileText
+  ArrowRight, Download
 } from 'lucide-react';
 import { TaxFiling } from '../types';
 
