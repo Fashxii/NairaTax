@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '../AppShell';
 
-interface VerificationProps {
-  contactMethod: string;
-  onBack: () => void;
-  onVerify: () => void;
-}
-
-export default function Verification({ contactMethod, onBack, onVerify }: VerificationProps) {
+export default function Verification() {
+  const { session, handleVerifySuccess: onVerify } = useAppContext();
+  const navigate = useNavigate();
+  const contactMethod = session.contactMethod;
+  const onBack = () => navigate('/');
   const [code, setCode] = useState<string[]>(Array(6).fill(''));
   const [timeLeft, setTimeLeft] = useState(45);
   const [isVerifying, setIsVerifying] = useState(false);

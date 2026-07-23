@@ -7,13 +7,14 @@ import {
   Bell, Camera, Check, Upload, X, ArrowRight, ChevronRight, Sparkles, RefreshCw,
   Calendar, Sun, Moon, Users
 } from 'lucide-react';
-import { UserSession, DashboardTab, TaxFiling } from '../types';
+import { DashboardTab, TaxFiling } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
 import CMSManager from './CMSManager';
 import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
 import { useContent } from '../context/ContentContext';
+import { useAppContext } from '../AppShell';
 
 // Extracted dashboard tab components
 import {
@@ -25,14 +26,6 @@ import {
   SettingsTab,
   SyncTransaction,
 } from './dashboard/index';
-
-interface DashboardProps {
-  session: UserSession;
-  onLogout: () => void;
-  onLinkNIN: () => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-}
 
 const INITIAL_FILINGS: TaxFiling[] = [
   {
@@ -116,7 +109,8 @@ const INITIAL_TRANSACTIONS: SyncTransaction[] = [
   }
 ];
 
-export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggleTheme }: DashboardProps) {
+export default function Dashboard() {
+  const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
   const { content } = useContent();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [filings, setFilings] = useState<TaxFiling[]>(INITIAL_FILINGS);

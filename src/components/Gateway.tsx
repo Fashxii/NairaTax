@@ -9,15 +9,11 @@ import {
 import { AccountType } from '../types';
 import { useContent } from '../context/ContentContext';
 import { estimateSavings } from '../utils/taxEngine';
+import { useAppContext } from '../AppShell';
 
-interface GatewayProps {
-  onNext: (accountType: AccountType, contactMethod: string) => void;
-  onGuestDemo?: (accountType: AccountType) => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-}
-
-export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: GatewayProps) {
+export default function Gateway() {
+  const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemoCtx, theme, onToggleTheme } = useAppContext();
+  const onGuestDemo = onGuestDemoCtx;
   const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
   const [contactMethod, setContactMethod] = useState('');
