@@ -5,6 +5,7 @@ import {
   FileText, Download, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles
 } from 'lucide-react';
 import { Employee, PayslipResult } from '../types';
+import { calculatePayslip, formatNaira } from '../utils/taxEngine';
 
 const INITIAL_EMPLOYEES: Employee[] = [
   { id: 'emp-1', name: 'Oluwaseun Adebayo', role: 'Senior Engineer', grossMonthlySalary: 850000, optInPension: true, optInNHF: true, optInNHIS: true },
@@ -12,70 +13,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
   { id: 'emp-3', name: 'Musa Ibrahim', role: 'Sales Executive', grossMonthlySalary: 350000, optInPension: true, optInNHF: false, optInNHIS: false },
 ];
 
-const formatNaira = (amount: number) => '₦' + amount.toLocaleString('en-NG', { maximumFractionDigits: 0 });
-
-// Core PAYE Calculation Engine
-const calculatePayslip = (emp: Employee): PayslipResult => {
-  const grossAnnual = emp.grossMonthlySalary * 12;
-  
-  // Statutory Deductions
-  const annualPension = emp.optInPension ? grossAnnual * 0.08 : 0;
-  const annualNHF = emp.optInNHF ? grossAnnual * 0.025 : 0;
-  const annualNHIS = emp.optInNHIS ? 60000 : 0; // Flat estimate for NHIS
-
-  // Consolidated Relief Allowance (CRA)
-  const flatBase = 200000;
-  const percentBase = grossAnnual * 0.01;
-  const cra = Math.max(flatBase, percentBase) + (grossAnnual * 0.20);
-
-  // Taxable Income
-  const taxExemptions = annualPension + annualNHF + annualNHIS + cra;
-  let remainingTaxable = Math.max(0, grossAnnual - taxExemptions);
-  const taxableIncome = remainingTaxable;
-
-  // Progressive Tax Bands
-  const bands = [
-    { limit: 300000, rate: 0.07 },
-    { limit: 300000, rate: 0.11 },
-    { limit: 500000, rate: 0.15 },
-    { limit: 500000, rate: 0.19 },
-    { limit: 1600000, rate: 0.21 },
-    { limit: Infinity, rate: 0.24 }
-  ];
-
-  let annualPaye = 0;
-  for (const b of bands) {
-    if (remainingTaxable <= 0) break;
-    const taxableInBand = Math.min(remainingTaxable, b.limit);
-    annualPaye += taxableInBand * b.rate;
-    remainingTaxable -= taxableInBand;
-  }
-
-  // Minimum tax check (1% of gross)
-  const minimumTax = grossAnnual * 0.01;
-  if (annualPaye < minimumTax) {
-    annualPaye = minimumTax;
-  }
-
-  const monthlyPaye = annualPaye / 12;
-  const monthlyPension = annualPension / 12;
-  const monthlyNHF = annualNHF / 12;
-  const monthlyNHIS = annualNHIS / 12;
-
-  const netPay = emp.grossMonthlySalary - (monthlyPaye + monthlyPension + monthlyNHF + monthlyNHIS);
-
-  return {
-    employeeId: emp.id,
-    gross: emp.grossMonthlySalary,
-    pension: monthlyPension,
-    nhf: monthlyNHF,
-    nhis: monthlyNHIS,
-    cra: cra / 12,
-    taxableIncome: taxableIncome / 12,
-    paye: monthlyPaye,
-    netPay: netPay
-  };
-};
+// PAYE calculation now uses shared taxEngine — see src/utils/taxEngine.ts
 
 export default function PayrollManager() {
   const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
