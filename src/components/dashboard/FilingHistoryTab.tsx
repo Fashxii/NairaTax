@@ -1,6 +1,5 @@
-import React from 'react';
 import { motion } from 'motion/react';
-import { Download, FileText, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { UserSession, TaxFiling } from '../../types';
 
 interface FilingHistoryTabProps {

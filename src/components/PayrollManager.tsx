@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Users, UserPlus, Briefcase, Calculator, Building,
-  FileText, Download, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles
+  Users, UserPlus, Briefcase, Building,
+  Download, CheckCircle2, ChevronRight, X, Sparkles
 } from 'lucide-react';
-import { Employee, PayslipResult } from '../types';
+import { Employee } from '../types';
 import { calculatePayslip, formatNaira } from '../utils/taxEngine';
 
 const INITIAL_EMPLOYEES: Employee[] = [
@@ -16,7 +17,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
 // PAYE calculation now uses shared taxEngine — see src/utils/taxEngine.ts
 
 export default function PayrollManager() {
-  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = usePersistedState<Employee[]>('employees', INITIAL_EMPLOYEES);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 

@@ -4,20 +4,23 @@
  * Wraps all routes in the shared layout (background, theme, AnimatePresence).
  * Provides session state, theme, and navigation helpers to child routes
  * via React Router's Outlet context.
+ *
+ * Session state is now managed by SessionContext (persisted to localStorage).
  */
 
-import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
-import { UserSession, AccountType } from './types';
+import { AccountType } from './types';
+import { useSession } from './context/SessionContext';
 
 /** Context shape exposed to all child routes via useAppContext() */
 export interface AppContext {
-  session: UserSession;
+  session: ReturnType<typeof useSession>['session'];
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 
-  // Navigation handlers (replace old screen state machine)
+  // Navigation handlers
   handleGatewayNext: (accountType: AccountType, contactMethod: string) => void;
   handleVerifySuccess: () => void;
   handleLinkSuccess: (nin: string) => void;
@@ -34,13 +37,8 @@ export function useAppContext() {
 
 export default function AppShell() {
   const navigate = useNavigate();
-
-  const [session, setSession] = useState<UserSession>({
-    accountType: 'individual',
-    contactMethod: '',
-    isVerified: false,
-    isNINLinked: false
-  });
+  const location = useLocation();
+  const { session, setSession, isAuthenticated, logout } = useSession();
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
@@ -56,6 +54,13 @@ export default function AppShell() {
       localStorage.setItem('theme', 'light');
     }
   }, [theme]);
+
+  // Auto-redirect: if authenticated and on gateway, go to dashboard
+  useEffect(() => {
+    if (isAuthenticated && location.pathname === '/') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -121,12 +126,7 @@ export default function AppShell() {
   };
 
   const handleLogout = () => {
-    setSession({
-      accountType: 'individual',
-      contactMethod: '',
-      isVerified: false,
-      isNINLinked: false
-    });
+    logout();
     navigate('/');
   };
 
