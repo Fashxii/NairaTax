@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Fingerprint, Info, ArrowRight, Shield, Scale, Lock } from 'lucide-react';
+import { useAppContext } from '../AppShell';
 
-interface ComplianceLinkProps {
-  onLink: (nin: string) => void;
-  onSkip: () => void;
-}
-
-export default function ComplianceLink({ onLink, onSkip }: ComplianceLinkProps) {
+export default function ComplianceLink() {
+  const { handleLinkSuccess: onLink, handleLinkSkip: onSkip } = useAppContext();
   const [nin, setNin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
