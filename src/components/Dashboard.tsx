@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { UserSession, DashboardTab, TaxFiling, TaxCalculationResult } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
-import CMSManager from './CMSManager';
 import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
@@ -775,17 +774,6 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
               <span>E-Invoicing</span>
             </button>
 
-            <button
-              onClick={() => { setActiveTab('cms'); setIsFilingFlow(false); }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-                activeTab === 'cms'
-                  ? 'bg-primary-container/10 text-primary-container font-bold border-l-4 border-l-primary-container rounded-l-none'
-                  : 'text-on-surface-variant hover:bg-surface-container/40 hover:text-primary-container'
-              }`}
-            >
-              <LayoutDashboard className="w-4.5 h-4.5" />
-              <span>CMS Admin</span>
-            </button>
           </nav>
         </div>
 
@@ -1153,9 +1141,6 @@ export default function Dashboard({ session, onLogout, onLinkNIN, theme, onToggl
               </div>
             )}
 
-            {!isFilingFlow && activeTab === 'cms' && (
-              <CMSManager />
-            )}
 
             {!isFilingFlow && activeTab === 'invoicing' && (
               <InvoiceManager />

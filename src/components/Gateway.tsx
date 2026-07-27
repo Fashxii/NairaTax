@@ -14,9 +14,10 @@ interface GatewayProps {
   onGuestDemo?: (accountType: AccountType) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onAdminLogin?: () => void;
 }
 
-export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: GatewayProps) {
+export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme, onAdminLogin }: GatewayProps) {
   const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
   const [contactMethod, setContactMethod] = useState('');
@@ -599,6 +600,14 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme }: G
             <p className="text-[11px] text-on-surface-variant leading-relaxed">
               Designed in absolute compliance with the National Information Technology Development Agency (NITDA) of Nigeria, the FIRS tax reconciliation protocols, and NDPR security mandates.
             </p>
+            {onAdminLogin && (
+              <button 
+                onClick={onAdminLogin}
+                className="text-[10px] text-[#013220] font-bold uppercase tracking-widest hover:underline mt-4 block"
+              >
+                Staff / Admin Login
+              </button>
+            )}
           </div>
 
         </div>
