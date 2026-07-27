@@ -5,18 +5,21 @@
 
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { UserSession, AccountType } from './types';
+import { UserSession, AccountType, AdminRole } from './types';
 import Gateway from './components/Gateway';
 import Verification from './components/Verification';
 import ComplianceLink from './components/ComplianceLink';
 import Dashboard from './components/Dashboard';
+import AdminGateway from './components/AdminGateway';
+import AdminDashboard from './components/AdminDashboard';
 
-type ScreenState = 'GATEWAY' | 'VERIFICATION' | 'COMPLIANCE_LINK' | 'DASHBOARD';
+type ScreenState = 'GATEWAY' | 'VERIFICATION' | 'COMPLIANCE_LINK' | 'DASHBOARD' | 'ADMIN_GATEWAY' | 'ADMIN_DASHBOARD';
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenState>('GATEWAY');
   const [session, setSession] = useState<UserSession>({
     accountType: 'individual',
+    systemRole: 'user',
     contactMethod: '',
     isVerified: false,
     isNINLinked: false
@@ -45,6 +48,7 @@ export default function App() {
     setSession((prev) => ({
       ...prev,
       accountType,
+      systemRole: 'user',
       contactMethod
     }));
     setScreen('VERIFICATION');
@@ -93,6 +97,7 @@ export default function App() {
   const handleGuestDemo = (accountType: AccountType = 'individual') => {
     setSession({
       accountType,
+      systemRole: 'user',
       contactMethod: 'guest-demo',
       isVerified: true,
       isNINLinked: true,
@@ -101,9 +106,23 @@ export default function App() {
     setScreen('DASHBOARD');
   };
 
+  const handleAdminDemo = (role: AdminRole) => {
+    setSession({
+      accountType: 'business',
+      systemRole: 'admin',
+      adminRole: role,
+      contactMethod: 'admin-demo',
+      isVerified: true,
+      isNINLinked: true,
+      fullName: 'System Administrator'
+    });
+    setScreen('ADMIN_DASHBOARD');
+  };
+
   const handleLogout = () => {
     setSession({
       accountType: 'individual',
+      systemRole: 'user',
       contactMethod: '',
       isVerified: false,
       isNINLinked: false
@@ -120,6 +139,7 @@ export default function App() {
             onGuestDemo={handleGuestDemo} 
             theme={theme}
             onToggleTheme={handleToggleTheme}
+            onAdminLogin={() => setScreen('ADMIN_GATEWAY')}
           />
         )}
         {screen === 'VERIFICATION' && (
@@ -140,6 +160,22 @@ export default function App() {
             session={session} 
             onLogout={handleLogout} 
             onLinkNIN={handleLinkNINFromDashboard}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+          />
+        )}
+        {screen === 'ADMIN_GATEWAY' && (
+          <AdminGateway
+            onAdminLogin={handleAdminDemo}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+            onBackToUser={() => setScreen('GATEWAY')}
+          />
+        )}
+        {screen === 'ADMIN_DASHBOARD' && (
+          <AdminDashboard
+            session={session}
+            onLogout={handleLogout}
             theme={theme}
             onToggleTheme={handleToggleTheme}
           />

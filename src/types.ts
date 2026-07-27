@@ -1,7 +1,11 @@
 export type AccountType = 'individual' | 'business';
+export type SystemRole = 'user' | 'admin';
+export type AdminRole = 'super_admin' | 'content_manager' | 'reviewer';
 
 export interface UserSession {
   accountType: AccountType;
+  systemRole?: SystemRole;
+  adminRole?: AdminRole;
   contactMethod: string;
   isVerified: boolean;
   isNINLinked: boolean;
@@ -10,7 +14,8 @@ export interface UserSession {
   taxId?: string;
 }
 
-export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'cms' | 'invoicing' | 'tcc' | 'payroll';
+export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'invoicing' | 'tcc' | 'payroll';
+export type AdminDashboardTab = 'users' | 'roles' | 'cms' | 'tcc-approvals' | 'settings';
 
 export interface TaxFiling {
   id: string;
@@ -91,4 +96,16 @@ export interface PayslipResult {
   netPay: number;
 }
 
+// --- Admin User Management Types ---
 
+export type AdminUserStatus = 'active' | 'suspended' | 'pending';
+
+export interface AdminUser {
+  id: string;
+  fullName: string;
+  email: string;
+  role: AdminRole;
+  status: AdminUserStatus;
+  createdAt: string;
+  lastLogin?: string;
+}
