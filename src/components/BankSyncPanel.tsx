@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState } from 'react';
+import { motion } from 'motion/react';
 import {
-  Landmark, RefreshCw, CheckCircle2, ChevronRight, Download, Lock, Search, Sparkles
+  Landmark, RefreshCw, CheckCircle2, Download, Lock, Sparkles
 } from 'lucide-react';
 
 interface BankSyncPanelProps {

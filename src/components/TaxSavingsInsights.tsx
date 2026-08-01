@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'motion/react';
 import { Trophy, TrendingUp, Flame, Star, Target, Sparkles } from 'lucide-react';
 

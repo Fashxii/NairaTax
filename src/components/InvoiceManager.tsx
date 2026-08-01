@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Plus, FileText, Send, CheckCircle2, Clock, AlertTriangle,
+  Plus, FileText, Send, CheckCircle2, AlertTriangle,
   X, Trash2, ArrowRight, Download, ChevronRight, Sparkles,
   Check, ExternalLink
 } from 'lucide-react';
@@ -91,7 +92,7 @@ const statusConfig: Record<InvoiceStatus, { color: string; bg: string; icon: Rea
 };
 
 export default function InvoiceManager() {
-  const [invoices, setInvoices] = useState<Invoice[]>(SAMPLE_INVOICES);
+  const [invoices, setInvoices] = usePersistedState<Invoice[]>('invoices', SAMPLE_INVOICES);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isRemitModalOpen, setIsRemitModalOpen] = useState(false);

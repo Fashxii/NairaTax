@@ -14,7 +14,7 @@ export interface UserSession {
   taxId?: string;
 }
 
-export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'invoicing' | 'tcc' | 'payroll';
+export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'cms' | 'invoicing' | 'tcc' | 'payroll';
 export type AdminDashboardTab = 'users' | 'roles' | 'cms' | 'tcc-approvals' | 'settings';
 
 export interface TaxFiling {
