@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
-import CMSManager from './CMSManager';
 import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
+import CMSManager from './CMSManager';
 import { useAppContext } from '../AppShell';
 import { usePersistedState } from '../hooks/usePersistedState';
 
@@ -874,9 +874,6 @@ export default function Dashboard() {
               />
             )}
 
-            {!isFilingFlow && activeTab === 'cms' && (
-              <CMSManager />
-            )}
 
             {!isFilingFlow && activeTab === 'invoicing' && (
               <InvoiceManager />
@@ -888,6 +885,10 @@ export default function Dashboard() {
 
             {!isFilingFlow && activeTab === 'payroll' && (
               <PayrollManager />
+            )}
+
+            {!isFilingFlow && activeTab === 'cms' && (
+              <CMSManager />
             )}
 
             {!isFilingFlow && activeTab === 'overview' && (

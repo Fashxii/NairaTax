@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, ShieldCheck, Landmark, Sparkles, 
   Calendar, Camera, MessageSquare, ChevronDown, 
@@ -15,6 +16,8 @@ import { validateContact, sanitize } from '../utils/validators';
 export default function Gateway() {
   const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemoCtx, theme, onToggleTheme } = useAppContext();
   const onGuestDemo = onGuestDemoCtx;
+  const navigate = useNavigate();
+  const onAdminLogin = () => navigate('/admin');
   const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
   const [contactMethod, setContactMethod] = useState('');
@@ -580,6 +583,14 @@ export default function Gateway() {
             <p className="text-[11px] text-on-surface-variant leading-relaxed">
               Designed in absolute compliance with the National Information Technology Development Agency (NITDA) of Nigeria, the FIRS tax reconciliation protocols, and NDPR security mandates.
             </p>
+            {onAdminLogin && (
+              <button 
+                onClick={onAdminLogin}
+                className="text-[10px] text-[#013220] font-bold uppercase tracking-widest hover:underline mt-4 block"
+              >
+                Staff / Admin Login
+              </button>
+            )}
           </div>
 
         </div>
