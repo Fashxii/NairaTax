@@ -14,6 +14,8 @@ import { AnimatePresence } from 'motion/react';
 import { AccountType } from './types';
 import { useSession } from './context/SessionContext';
 
+import SkipToContent from './components/SkipToContent';
+
 /** Context shape exposed to all child routes via useAppContext() */
 export interface AppContext {
   session: ReturnType<typeof useSession>['session'];
@@ -145,9 +147,12 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans selection:bg-accent-green selection:text-primary-container">
-      <AnimatePresence mode="wait">
-        <Outlet context={ctx} />
-      </AnimatePresence>
+      <SkipToContent />
+      <main id="main-content" className="flex-grow flex flex-col">
+        <AnimatePresence mode="wait">
+          <Outlet context={ctx} />
+        </AnimatePresence>
+      </main>
     </div>
   );
 }

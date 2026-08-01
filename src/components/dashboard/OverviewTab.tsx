@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'motion/react';
 import { 
   Info, FileText, Landmark, ChevronRight 
@@ -46,7 +47,7 @@ interface OverviewTabProps {
   onStartFiling: () => void;
 }
 
-export default function OverviewTab({
+const OverviewTab = memo(function OverviewTab({
   session,
   accountMode,
   currentTaxpayerName,
@@ -277,4 +278,6 @@ export default function OverviewTab({
       </div>
     </motion.section>
   );
-}
+});
+
+export default OverviewTab;

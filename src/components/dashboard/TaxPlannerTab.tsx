@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, ArrowUpRight, Sparkles } from 'lucide-react';
 import { DEDUCTION_AMOUNTS } from '../../utils/taxEngine';
 
-export default function TaxPlannerTab() {
+const TaxPlannerTab = memo(function TaxPlannerTab() {
   const [plannerIncome, setPlannerIncome] = useState<string>('4500000');
   const [plannerExpenses, setPlannerExpenses] = useState<string>('1200000');
   const [plannerOtherDeductions, setPlannerOtherDeductions] = useState<string>('300000');
@@ -217,4 +217,6 @@ export default function TaxPlannerTab() {
       </div>
     </motion.section>
   );
-}
+});
+
+export default TaxPlannerTab;

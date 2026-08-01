@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, ShieldCheck, Landmark } from 'lucide-react';
-import { TaxFiling, UserSession } from '../types';
+import { generateTaxReceipt } from '../utils/pdfGenerator';
 
 interface TaxReceiptModalProps {
   filing: TaxFiling | null;
@@ -12,8 +12,7 @@ export default function TaxReceiptModal({ filing, session, onClose }: TaxReceipt
   if (!filing) return null;
 
   const handleDownload = () => {
-    // Standard alert or simulation of downloading
-    alert(`Downloading Tax Receipt PDF: ${filing.receiptNumber}.pdf`);
+    generateTaxReceipt(filing, session);
   };
 
   return (

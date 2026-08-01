@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Employee } from '../types';
 import { calculatePayslip, formatNaira } from '../utils/taxEngine';
+import { generatePayslip, exportPayrollCSV } from '../utils/pdfGenerator';
 
 const INITIAL_EMPLOYEES: Employee[] = [
   { id: 'emp-1', name: 'Oluwaseun Adebayo', role: 'Senior Engineer', grossMonthlySalary: 850000, optInPension: true, optInNHF: true, optInNHIS: true },
@@ -122,7 +123,10 @@ export default function PayrollManager() {
       </div>
 
       <div className="flex gap-3">
-        <button className="flex-1 sm:flex-none h-11 px-6 bg-surface-container border border-outline-variant text-primary-container text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer">
+        <button 
+          onClick={() => exportPayrollCSV(employees)}
+          className="flex-1 sm:flex-none h-11 px-6 bg-surface-container border border-outline-variant text-primary-container text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
           <Download className="w-4 h-4" />
           <span>Export Payroll CSV</span>
         </button>
@@ -366,7 +370,10 @@ export default function PayrollManager() {
                       <span className="text-2xl font-black text-emerald-700">{formatNaira(slip.netPay)}</span>
                     </div>
 
-                    <button className="w-full h-11 bg-surface-container border border-outline-variant text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer mt-4">
+                    <button 
+                      onClick={() => generatePayslip(selectedEmployee, slip)}
+                      className="w-full h-11 bg-surface-container border border-outline-variant text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer mt-4"
+                    >
                       <Download className="w-4 h-4" />
                       <span>Download Payslip PDF</span>
                     </button>

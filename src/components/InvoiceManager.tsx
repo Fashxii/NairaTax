@@ -7,6 +7,8 @@ import {
   Check, ExternalLink
 } from 'lucide-react';
 import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
+import { validateEmail, sanitize } from '../utils/validators';
 
 const VAT_RATE = 0.075; // 7.5% Nigeria VAT
 
@@ -146,7 +148,14 @@ export default function InvoiceManager() {
   };
 
   const handleCreateInvoice = () => {
-    if (!newClientName.trim() || !newDueDate) return;
+    const cleanName = sanitize(newClientName);
+    const cleanEmail = sanitize(newClientEmail);
+    if (!cleanName || !newDueDate) return;
+
+    if (cleanEmail && !validateEmail(cleanEmail).valid) {
+      alert('Please enter a valid client email address.');
+      return;
+    }
 
     const subtotal = newLineItems.reduce((sum, li) => sum + (li.quantity * li.unitPrice), 0);
     const vatAmount = Math.round(subtotal * VAT_RATE);
@@ -156,11 +165,13 @@ export default function InvoiceManager() {
     const newInvoice: Invoice = {
       id: 'inv-' + Date.now(),
       invoiceNumber: invoiceNum,
-      clientName: newClientName,
-      clientEmail: newClientEmail,
+      clientName: cleanName,
+      clientEmail: cleanEmail,
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: newDueDate,
-      lineItems: newLineItems.filter(li => li.description.trim()),
+      lineItems: newLineItems
+        .filter(li => li.description.trim())
+        .map(li => ({ ...li, description: sanitize(li.description) })),
       subtotal,
       vatAmount,
       total,
@@ -462,7 +473,10 @@ export default function InvoiceManager() {
                       <span>Remit VAT to NRS — {formatNaira(selectedInvoice.vatAmount)}</span>
                     </button>
                   )}
-                  <button className="w-full h-11 bg-surface-container border border-outline-variant text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer">
+                  <button 
+                    onClick={() => generateInvoicePDF(selectedInvoice)}
+                    className="w-full h-11 bg-surface-container border border-outline-variant text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center space-x-2 hover:bg-surface-container-high transition-colors cursor-pointer"
+                  >
                     <Download className="w-4 h-4" />
                     <span>Download PDF</span>
                   </button>
