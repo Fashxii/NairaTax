@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { motion } from 'motion/react';
 import { Calculator, ArrowUpRight, Info } from 'lucide-react';
 import { TaxCalculationResult } from '../../types';
 import { calculatePIT, PITDeductionConfig, DEDUCTION_AMOUNTS } from '../../utils/taxEngine';
 
-export default function TaxCalculatorTab() {
+const TaxCalculatorTab = memo(function TaxCalculatorTab() {
   const [annualSalaryInput, setAnnualSalaryInput] = useState('6000000');
   const [pensionRate, setPensionRate] = useState(8);
   const [calcVpc, setCalcVpc] = useState(false);
@@ -256,4 +256,6 @@ export default function TaxCalculatorTab() {
       </div>
     </motion.section>
   );
-}
+});
+
+export default TaxCalculatorTab;

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'motion/react';
 import { Download, FileText } from 'lucide-react';
 import { UserSession, TaxFiling } from '../../types';
@@ -9,7 +10,7 @@ interface FilingHistoryTabProps {
   onStartFiling: () => void;
 }
 
-export default function FilingHistoryTab({ filings, session, onSelectFiling, onStartFiling }: FilingHistoryTabProps) {
+const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSelectFiling, onStartFiling }: FilingHistoryTabProps) {
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -89,4 +90,6 @@ export default function FilingHistoryTab({ filings, session, onSelectFiling, onS
       </div>
     </motion.section>
   );
-}
+});
+
+export default FilingHistoryTab;
