@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowRight, ShieldCheck, Landmark, Check, Sparkles, 
-  Calendar, Camera, MessageSquare, HelpCircle, ChevronDown, 
-  Zap, ArrowUpRight, CheckCircle, ShieldAlert, Award, FileText,
+  ArrowRight, ShieldCheck, Landmark, Sparkles, 
+  Calendar, Camera, MessageSquare, ChevronDown, 
+  ArrowUpRight, CheckCircle, Award, FileText,
   Sun, Moon
 } from 'lucide-react';
 import { AccountType } from '../types';
 import { useContent } from '../context/ContentContext';
+import { estimateSavings } from '../utils/taxEngine';
+import { useAppContext } from '../AppShell';
+import { validateContact, sanitize } from '../utils/validators';
 
-interface GatewayProps {
-  onNext: (accountType: AccountType, contactMethod: string) => void;
-  onGuestDemo?: (accountType: AccountType) => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-  onAdminLogin?: () => void;
-}
-
-export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme, onAdminLogin }: GatewayProps) {
+export default function Gateway() {
+  const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemoCtx, theme, onToggleTheme } = useAppContext();
+  const onGuestDemo = onGuestDemoCtx;
+  const navigate = useNavigate();
+  const onAdminLogin = () => navigate('/admin');
   const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
   const [contactMethod, setContactMethod] = useState('');
@@ -30,8 +30,10 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme, onA
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactMethod.trim()) {
-      setError('Please enter your WhatsApp number or Email address.');
+    const cleaned = sanitize(contactMethod);
+    const result = validateContact(cleaned);
+    if (!result.valid) {
+      setError(result.error || 'Invalid input');
       return;
     }
     setError('');
@@ -40,31 +42,12 @@ export default function Gateway({ onNext, onGuestDemo, theme, onToggleTheme, onA
     // Simulate network delay
     setTimeout(() => {
       setIsLoading(false);
-      onNext(accountType, contactMethod);
+      onNext(accountType, cleaned);
     }, 1000);
   };
 
-  // Tax calculations based on slider values
-  const calculateEstimate = (income: number) => {
-    const annualGross = income * 12;
-    // Standard basic tax rate (approx 12.5% for individual PIT)
-    const standardAnnualTax = annualGross * 0.125;
-    
-    // Optimized PIT with DIYtax9ja (using CRA + 8% Pension + Life Assurance deductions)
-    // Approx effective rate goes down to ~7.2%
-    const optimizedAnnualTax = annualGross * 0.072;
-    
-    const annualSavings = Math.max(0, standardAnnualTax - optimizedAnnualTax);
-    
-    return {
-      standardMonthly: standardAnnualTax / 12,
-      optimizedMonthly: optimizedAnnualTax / 12,
-      monthlySavings: annualSavings / 12,
-      annualSavings: annualSavings
-    };
-  };
-
-  const estimates = calculateEstimate(monthlyIncome);
+  // Tax calculations based on slider values — uses shared engine
+  const estimates = estimateSavings(monthlyIncome);
 
   const faqs = [
     {

@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Fingerprint, Info, ArrowRight, Shield, Scale, Lock } from 'lucide-react';
+import { useAppContext } from '../AppShell';
+import { validateNIN } from '../utils/validators';
 
-interface ComplianceLinkProps {
-  onLink: (nin: string) => void;
-  onSkip: () => void;
-}
-
-export default function ComplianceLink({ onLink, onSkip }: ComplianceLinkProps) {
+export default function ComplianceLink() {
+  const { handleLinkSuccess: onLink, handleLinkSkip: onSkip } = useAppContext();
   const [nin, setNin] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,15 +20,16 @@ export default function ComplianceLink({ onLink, onSkip }: ComplianceLinkProps) 
 
   const handleLink = (e: React.FormEvent) => {
     e.preventDefault();
-    if (nin.length !== 11) {
-      setError('National Identification Number (NIN) must be exactly 11 digits.');
+    const result = validateNIN(nin);
+    if (!result.valid) {
+      setError(result.error || 'Invalid NIN');
       return;
     }
 
     setIsLoading(true);
     setError('');
 
-    // Simulate link validation
+    // Simulate link validation (prototype — no actual NIMC API call)
     setTimeout(() => {
       setIsLoading(false);
       onLink(nin);
