@@ -5,7 +5,9 @@
  * Provides session state, theme, and navigation helpers to child routes
  * via React Router's Outlet context.
  *
- * Session state is now managed by SessionContext (persisted to localStorage).
+ * Session state is managed by SessionContext (persisted to localStorage).
+ * All hardcoded demo names have been removed — user identity comes from
+ * the authStore registration during the real login flow.
  */
 
 import { useState, useEffect } from 'react';
@@ -24,11 +26,10 @@ export interface AppContext {
 
   // Navigation handlers
   handleGatewayNext: (accountType: AccountType, contactMethod: string) => void;
-  handleVerifySuccess: () => void;
+  handleVerifySuccess: (fullName: string) => void;
   handleLinkSuccess: (nin: string) => void;
   handleLinkSkip: () => void;
   handleLinkNINFromDashboard: () => void;
-  handleGuestDemo: (accountType?: AccountType) => void;
   handleLogout: () => void;
 }
 
@@ -77,54 +78,37 @@ export default function AppShell() {
     navigate('/verify');
   };
 
-  const handleVerifySuccess = () => {
+  /** Called after successful OTP verification with the user's real name from authStore */
+  const handleVerifySuccess = (fullName: string) => {
     setSession((prev) => ({
       ...prev,
-      isVerified: true
+      isVerified: true,
+      fullName,
     }));
     navigate('/compliance');
   };
 
   const handleLinkSuccess = (nin: string) => {
-    const fullName = session.accountType === 'individual' 
-      ? 'Chinedu Abiodun Okafor' 
-      : 'Apex Ventures & Logistics Ltd';
-
     setSession((prev) => ({
       ...prev,
       isNINLinked: true,
       nin,
-      fullName
+      // fullName is already set from the verification step — no hardcoding
     }));
     navigate('/dashboard');
   };
 
   const handleLinkSkip = () => {
-    const fullName = session.accountType === 'individual' 
-      ? 'Chinedu Abiodun Okafor' 
-      : 'Apex Ventures & Logistics Ltd';
-
     setSession((prev) => ({
       ...prev,
       isNINLinked: false,
-      fullName
+      // fullName is already set from the verification step — no hardcoding
     }));
     navigate('/dashboard');
   };
 
   const handleLinkNINFromDashboard = () => {
     navigate('/compliance');
-  };
-
-  const handleGuestDemo = (accountType: AccountType = 'individual') => {
-    setSession({
-      accountType,
-      contactMethod: 'guest-demo',
-      isVerified: true,
-      isNINLinked: true,
-      fullName: accountType === 'individual' ? 'Chinedu Abiodun Okafor (Demo)' : 'Apex Ventures & Logistics (Demo)'
-    });
-    navigate('/dashboard');
   };
 
   const handleLogout = () => {
@@ -141,7 +125,6 @@ export default function AppShell() {
     handleLinkSuccess,
     handleLinkSkip,
     handleLinkNINFromDashboard,
-    handleGuestDemo,
     handleLogout,
   };
 

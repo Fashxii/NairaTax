@@ -1,28 +1,87 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ShieldAlert, ArrowLeft, Sun, Moon, Lock, Edit, CheckCircle } from 'lucide-react';
-import { AdminRole } from '../types';
+import { ShieldAlert, ArrowLeft, Sun, Moon, Lock, AlertCircle } from 'lucide-react';
+import { useAppContext } from '../AppShell';
+import { useSession } from '../context/SessionContext';
+import { useNavigate } from 'react-router-dom';
+import { findUserByEmail, verifyPassword, recordLogin } from '../utils/authStore';
 
-interface AdminGatewayProps {
-  onAdminLogin: (role: AdminRole) => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-  onBackToUser: () => void;
-}
+export default function AdminGateway() {
+  const { theme, onToggleTheme } = useAppContext();
+  const { setSession } = useSession();
+  const navigate = useNavigate();
+  const onBackToUser = () => navigate('/');
 
-export default function AdminGateway({ onAdminLogin, theme, onToggleTheme, onBackToUser }: AdminGatewayProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter both staff email and password.');
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate login and default to super_admin for standard login form
-    setTimeout(() => {
+
+    try {
+      // Find admin user in authStore
+      const user = findUserByEmail(email.trim());
+
+      if (!user || user.role === 'taxpayer') {
+        setIsLoading(false);
+        setError('Invalid admin staff credentials or unauthorized account.');
+        return;
+      }
+
+      if (!user.isActive) {
+        setIsLoading(false);
+        setError('This administrative account has been suspended.');
+        return;
+      }
+
+      // Check password if set (otherwise allow initial admin setup)
+      if (user.passwordHash) {
+        const isMatch = await verifyPassword(password, user.passwordHash);
+        if (!isMatch) {
+          setIsLoading(false);
+          setError('Invalid staff password. Please try again.');
+          return;
+        }
+      }
+
+      // Record login time
+      recordLogin(user.id);
+
+      // Set session context with proper admin roles
+      setSession((prev) => ({
+        ...prev,
+        systemRole: 'admin',
+        adminRole: user.role as any,
+        isVerified: true,
+        fullName: user.fullName,
+        contactMethod: user.email,
+      }));
+
+      // Store in sessionStorage for components that read adminRole
+      sessionStorage.setItem('adminRole', user.role);
+
       setIsLoading(false);
-      onAdminLogin('super_admin');
-    }, 1000);
+
+      // Role-based routing to correct blade
+      if (user.role === 'super_admin') {
+        navigate('/admin/super');
+      } else {
+        navigate('/admin/dashboard');
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setError('Authentication failed. Please check system credentials.');
+    }
   };
 
   return (
@@ -38,7 +97,7 @@ export default function AdminGateway({ onAdminLogin, theme, onToggleTheme, onBac
         </button>
         <div className="flex items-center space-x-2 text-error">
           <ShieldAlert className="w-5 h-5" />
-          <span className="font-extrabold tracking-tight">Admin & Staff Portal</span>
+          <span className="font-extrabold tracking-tight">Admin &amp; Staff Portal</span>
         </div>
         <button
           onClick={onToggleTheme}
@@ -53,14 +112,14 @@ export default function AdminGateway({ onAdminLogin, theme, onToggleTheme, onBac
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="w-full max-w-md bg-white p-8 rounded-2xl border border-outline-variant shadow-lg space-y-6"
+          className="w-full max-w-md bg-white p-8 rounded-2xl border border-outline-variant shadow-lg space-y-6 text-left"
         >
           <div className="text-center space-y-2">
             <div className="w-16 h-16 bg-error/10 text-error rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8" />
             </div>
             <h2 className="text-2xl font-black text-primary-container tracking-tight">System Access</h2>
-            <p className="text-sm text-on-surface-variant">Authorized personnel only.</p>
+            <p className="text-sm text-on-surface-variant">Authorized staff personnel only.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -85,6 +144,13 @@ export default function AdminGateway({ onAdminLogin, theme, onToggleTheme, onBac
               />
             </div>
 
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading}
@@ -93,48 +159,10 @@ export default function AdminGateway({ onAdminLogin, theme, onToggleTheme, onBac
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <span>Authenticate</span>
+                <span>Authenticate Staff Login</span>
               )}
             </button>
           </form>
-
-          {/* Quick Demo Logins for Reviewers */}
-          <div className="pt-6 border-t border-outline-variant space-y-3">
-            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider text-center">Demo Role Access</p>
-            <div className="grid grid-cols-1 gap-2">
-              <button 
-                onClick={() => onAdminLogin('super_admin')}
-                className="w-full py-2.5 px-4 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded-lg text-xs font-bold flex items-center justify-between text-primary-container transition-colors cursor-pointer"
-              >
-                <div className="flex items-center space-x-2">
-                  <ShieldAlert className="w-4 h-4 text-error" />
-                  <span>Super Admin</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider text-on-surface-variant">Full Access</span>
-              </button>
-              <button 
-                onClick={() => onAdminLogin('content_manager')}
-                className="w-full py-2.5 px-4 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded-lg text-xs font-bold flex items-center justify-between text-primary-container transition-colors cursor-pointer"
-              >
-                <div className="flex items-center space-x-2">
-                  <Edit className="w-4 h-4 text-accent-green" />
-                  <span>Content Manager</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider text-on-surface-variant">CMS Only</span>
-              </button>
-              <button 
-                onClick={() => onAdminLogin('reviewer')}
-                className="w-full py-2.5 px-4 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded-lg text-xs font-bold flex items-center justify-between text-primary-container transition-colors cursor-pointer"
-              >
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-blue-500" />
-                  <span>TCC Reviewer</span>
-                </div>
-                <span className="text-[9px] uppercase tracking-wider text-on-surface-variant">Approvals Only</span>
-              </button>
-            </div>
-          </div>
-
         </motion.div>
       </main>
     </div>

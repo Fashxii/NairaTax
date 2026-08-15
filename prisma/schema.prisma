@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum BankProvider {
+  MONO
+  OKRA
+}
+
+enum SyncStatus {
+  ACTIVE
+  REAUTH_REQUIRED
+  DISCONNECTED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+// -----------------------------------------------------------------------------
+// MODELS
+// -----------------------------------------------------------------------------
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  fullName          String?
+  phone             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  connectedAccounts ConnectedAccount[]
+
+  @@map("users")
+}
+
+model ConnectedAccount {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  provider       BankProvider  @default(MONO)
+  accountId      String        @unique // Provider's internal account ID (e.g. Mono account _id)
+  
+  bankName       String        // e.g. "Guaranty Trust Bank", "Kuda Bank"
+  bankCode       String        // e.g. "058", "50211"
+  accountNumber  String        // Masked or full account number (e.g. "0123456789")
+  accountName    String        // Account holder name registered at bank
+  currency       String        @default("NGN")
+  
+  // Balance stored in KOBO (integer format: ₦100.50 = 10050 Kobo)
+  balanceInKobo  BigInt        @default(0)
+  
+  syncStatus     SyncStatus    @default(ACTIVE)
+  bvn            String?       // Optional hashed/masked BVN reference
+  authCode       String?       // Auth token or code used for initial connection
+  reauthCode     String?       // Temporary code for re-authorization if required
+  
+  lastSyncedAt   DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  transactions   Transaction[]
+
+  @@index([userId, syncStatus])
+  @@index([provider, accountId])
+  @@map("connected_accounts")
+}
+
+model Transaction {
+  id                 String           @id @default(cuid())
+  connectedAccountId String
+  connectedAccount   ConnectedAccount @relation(fields: [connectedAccountId], references: [id], onDelete: Cascade)
+  
+  // Unique provider transaction ID to guarantee idempotent database synchronization
+  providerTxId       String           @unique
+  
+  // Amount stored in KOBO (integer format: ₦5,000.00 = 500000 Kobo)
+  amountInKobo       BigInt
+  type               TransactionType
+  narration          String
+  category           String?          // e.g., "Transfer", "POS", "Utilities", "Salary"
+  date               DateTime         // Transaction timestamp from bank statement
+  
+  // Stored JSON payload from bank webhook/API for auditing and metadata extraction
+  rawMetadata        Json?
+  
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  // Composite index for fast tabular pagination, filtering, and date range queries
+  @@index([connectedAccountId, date(sort: Desc)])
+  @@index([connectedAccountId, type])
+  @@map("transactions")
+}

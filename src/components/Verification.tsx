@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../AppShell';
+import { verifyOTP, generateOTP, sendOTPEmail } from '../utils/otpService';
+import { findUserByEmail } from '../utils/authStore';
 
 export default function Verification() {
   const { session, handleVerifySuccess: onVerify } = useAppContext();
@@ -13,20 +15,8 @@ export default function Verification() {
   const [timeLeft, setTimeLeft] = useState(45);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
-  const [showNotification, setShowNotification] = useState(true);
-  
-  // Custom random security code for simulation
-  const [simulatedCode] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
 
   const inputRefs = useRef<HTMLInputElement[]>([]);
-
-  // Automatically hide notification toast after some time or keep it visible
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Auto close after 12s, or let them dismiss
-    }, 12000);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Timer countdown
   useEffect(() => {
@@ -38,7 +28,6 @@ export default function Verification() {
   }, [timeLeft]);
 
   const handleChange = (index: number, value: string) => {
-    // Only allow single digit numbers
     const cleanValue = value.replace(/[^0-9]/g, '');
     if (!cleanValue) {
       const newCode = [...code];
@@ -52,7 +41,6 @@ export default function Verification() {
     newCode[index] = digit;
     setCode(newCode);
 
-    // Auto-focus next input
     if (index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -61,7 +49,6 @@ export default function Verification() {
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       if (!code[index] && index > 0) {
-        // Clear previous input and focus it
         const newCode = [...code];
         newCode[index - 1] = '';
         setCode(newCode);
@@ -78,7 +65,8 @@ export default function Verification() {
     e.preventDefault();
     setTimeLeft(45);
     setError('');
-    setShowNotification(true);
+    const newOtp = generateOTP();
+    sendOTPEmail(contactMethod, newOtp);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -92,12 +80,21 @@ export default function Verification() {
     setIsVerifying(true);
     setError('');
 
-    // Simulate verification
+    // Real OTP verification
     setTimeout(() => {
       setIsVerifying(false);
-      // Accept either the simulated secret code or standard mock validation
-      onVerify();
-    }, 1200);
+      const result = verifyOTP(contactMethod, enteredCode);
+      if (!result.valid) {
+        setError(result.error || 'Verification failed.');
+        return;
+      }
+
+      // Retrieve real user record
+      const user = findUserByEmail(contactMethod);
+      const fullName = user?.fullName || 'Taxpayer';
+
+      onVerify(fullName);
+    }, 800);
   };
 
   // Mask email or phone number for safety
@@ -125,30 +122,6 @@ export default function Verification() {
       transition={{ duration: 0.4 }}
       className="flex-grow flex flex-col justify-start items-center px-4 py-8 max-w-5xl mx-auto w-full"
     >
-      {/* Interactive SMS/Email Access Code Toast */}
-      {showNotification && (
-        <motion.div 
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed top-20 z-50 bg-[#013220] text-white border border-[#002113] rounded-xl px-4 py-3 shadow-lg flex items-center justify-between space-x-4 max-w-sm"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-[#4ADE80]/20 flex items-center justify-center text-accent-green font-bold">
-              N
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-[#4ADE80] uppercase tracking-wider">Access Verification Code</p>
-              <p className="text-sm font-bold tracking-widest">{simulatedCode} is your DIYtax9ja OTP.</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setShowNotification(false)}
-            className="text-xs font-bold text-neutral-300 hover:text-white hover:underline transition-all"
-          >
-            Dismiss
-          </button>
-        </motion.div>
-      )}
 
       {/* Top Navigation Header bar */}
       <header className="w-full max-w-xl mx-auto flex justify-between items-center pb-8 border-b border-outline-variant/30 mb-8">

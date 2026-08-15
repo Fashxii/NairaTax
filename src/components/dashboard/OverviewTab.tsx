@@ -45,6 +45,7 @@ interface OverviewTabProps {
   businessExpenseCap: number;
   businessExpensePercent: number;
   onStartFiling: () => void;
+  onViewLedger: () => void;
 }
 
 const OverviewTab = memo(function OverviewTab({
@@ -60,6 +61,7 @@ const OverviewTab = memo(function OverviewTab({
   businessExpenseCap,
   businessExpensePercent,
   onStartFiling,
+  onViewLedger
 }: OverviewTabProps) {
   const { content } = useContent();
 
@@ -208,7 +210,7 @@ const OverviewTab = memo(function OverviewTab({
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-xs text-on-surface uppercase tracking-wider">Sync Transaction Activity</h3>
             <button 
-              onClick={() => alert('Viewing complete live financial ledger...')}
+              onClick={onViewLedger}
               className="text-xs font-bold text-primary hover:underline cursor-pointer flex items-center space-x-1"
             >
               <span>View All Transactions</span>
