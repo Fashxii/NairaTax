@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calculator, History, BookOpen, Settings, 
   LogOut, ShieldAlert, ShieldCheck, Download, 
   Send, FileText, Info,
-  Bell, Camera, Check, Upload, X, ArrowRight, Sparkles, RefreshCw,
+  Camera, Check, Upload, X, ArrowRight, Sparkles, RefreshCw,
   Calendar, Sun, Moon, Users
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
@@ -13,6 +13,8 @@ import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
 import CMSManager from './CMSManager';
+import NotificationPanel from './NotificationPanel';
+import { useToast } from './Toast';
 import { useAppContext } from '../AppShell';
 import { usePersistedState } from '../hooks/usePersistedState';
 
@@ -111,6 +113,7 @@ const INITIAL_TRANSACTIONS: SyncTransaction[] = [
 
 export default function Dashboard() {
   const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [filings, setFilings] = usePersistedState<TaxFiling[]>('filings', INITIAL_FILINGS);
   const [transactions, setTransactions] = usePersistedState<SyncTransaction[]>('transactions', INITIAL_TRANSACTIONS);
@@ -315,7 +318,7 @@ export default function Dashboard() {
 
   const handleStartScan = () => {
     if (selectedPresetReceipt === null) {
-      alert("Please choose a receipt mock file to scan.");
+      showToast('warning', 'Scanner Error', 'Please choose a receipt mock file to scan.');
       return;
     }
     setScanStep('scanning');
@@ -418,7 +421,7 @@ export default function Dashboard() {
 
   const handleStartFiling = () => {
     if (!session.isNINLinked) {
-      alert("Compliance constraint: Please link your NIN first before self-assessment filing.");
+      showToast('error', 'Compliance Constraint', 'Please link your NIN first before self-assessment filing.', 5000);
     } else {
       setIsFilingFlow(true);
       setFilingStep(1);
@@ -574,10 +577,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <button aria-label="Notifications" className="material-symbols-outlined text-on-surface-variant hover:bg-secondary-container rounded-full p-2 transition-colors active:scale-95 cursor-pointer relative">
-              <Bell className="w-4.5 h-4.5" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full"></span>
-            </button>
+            <NotificationPanel />
           </div>
         </div>
         
@@ -843,7 +843,7 @@ export default function Dashboard() {
                   {/* Actions */}
                   <div className="space-y-3 w-full max-w-md">
                     <button
-                      onClick={() => alert(`Downloading TCC PDF certificate for ref: ${newFilingRef}`)}
+                      onClick={() => showToast('success', 'Download Started', `Downloading TCC PDF certificate for ref: ${newFilingRef}`)}
                       className="w-full bg-primary-container text-white hover:opacity-95 font-bold py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 active:scale-98 transition-transform text-xs uppercase tracking-wider cursor-pointer h-14"
                     >
                       <Download className="w-4 h-4 text-accent-green" />
@@ -905,6 +905,7 @@ export default function Dashboard() {
                 businessExpenseCap={businessExpenseCap}
                 businessExpensePercent={businessExpensePercent}
                 onStartFiling={handleStartFiling}
+                onViewLedger={() => setActiveTab('filing-history')}
               />
             )}
 

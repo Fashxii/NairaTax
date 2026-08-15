@@ -5,8 +5,11 @@ import {
   Settings, Sun, Moon, Bell, Plus, X, Search, MoreVertical,
   Trash2, Shield, Mail, Calendar
 } from 'lucide-react';
-import { UserSession, AdminDashboardTab, AdminRole, AdminUser } from '../types';
+import { AdminDashboardTab, AdminRole, AdminUser } from '../types';
 import CMSManager from './CMSManager';
+import { useAppContext } from '../AppShell';
+import { useNavigate } from 'react-router-dom';
+import { getAllUsers, registerUser, updateUser, deleteUser, hashPassword } from '../utils/authStore';
 
 // ── Seed data for demo ──────────────────────────────────────────────
 const INITIAL_ADMIN_USERS: AdminUser[] = [
@@ -70,16 +73,26 @@ const ROLE_META: Record<AdminRole, { label: string; color: string; bgColor: stri
 };
 
 // ── Component ───────────────────────────────────────────────────────
-interface AdminDashboardProps {
-  session: UserSession;
-  onLogout: () => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
-}
-
-export default function AdminDashboard({ session, onLogout, theme, onToggleTheme }: AdminDashboardProps) {
+export default function AdminDashboard() {
+  const { session, handleLogout, theme, onToggleTheme } = useAppContext();
+  const navigate = useNavigate();
+  const onLogout = () => { handleLogout(); navigate('/'); };
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('users');
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(INITIAL_ADMIN_USERS);
+  const getStaffUsers = (): AdminUser[] => {
+    return getAllUsers()
+      .filter((u) => u.role !== 'taxpayer')
+      .map((u) => ({
+        id: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        role: u.role as AdminRole,
+        status: u.isActive ? 'active' : 'suspended',
+        createdAt: u.createdAt.split('T')[0],
+        lastLogin: u.lastLogin ? u.lastLogin.split('T')[0] : undefined,
+      }));
+  };
+
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(getStaffUsers);
 
   // Create-user modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -114,31 +127,33 @@ export default function AdminDashboard({ session, onLogout, theme, onToggleTheme
   }, [activeTab, canAccessUsers, canAccessCMS, canAccessTCC]);
 
   // ── Handlers ────────────────────────────────────────────────────
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!newName.trim() || !newEmail.trim()) return;
-    const user: AdminUser = {
-      id: `au-${Date.now()}`,
-      fullName: newName.trim(),
-      email: newEmail.trim(),
-      role: newRole,
-      status: 'active',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setAdminUsers(prev => [user, ...prev]);
-    setNewName('');
-    setNewEmail('');
-    setNewRole('reviewer');
-    setShowCreateModal(false);
+    try {
+      const defaultPasswordHash = await hashPassword('AdminPass2026!');
+      registerUser(newEmail.trim(), newName.trim(), 'individual', newRole, defaultPasswordHash);
+      setAdminUsers(getStaffUsers());
+      setNewName('');
+      setNewEmail('');
+      setNewRole('reviewer');
+      setShowCreateModal(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create admin user');
+    }
   };
 
   const handleUpdateRole = () => {
     if (!editingUser) return;
-    setAdminUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, role: editRole } : u));
+    updateUser(editingUser.id, { role: editRole });
+    setAdminUsers(getStaffUsers());
     setEditingUser(null);
   };
 
   const handleToggleStatus = (userId: string) => {
-    setAdminUsers(prev => prev.map(u => u.id === userId ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u));
+    const user = adminUsers.find((u) => u.id === userId);
+    if (!user) return;
+    updateUser(userId, { isActive: user.status !== 'active' });
+    setAdminUsers(getStaffUsers());
     setOpenMenuId(null);
   };
 

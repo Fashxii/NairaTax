@@ -14,10 +14,7 @@ import { TaxFiling, UserSession, Employee, PayslipResult, Invoice } from '../typ
 import { formatNaira } from './taxEngine';
 
 // Colors based on DIYtax9ja theme
-const PRIMARY_GREEN = '#013220';
-const ACCENT_GREEN = '#4ADE80';
 const DARK_TEXT = '#1F2937';
-const LIGHT_BG = '#F3F4F6';
 
 /** Helper: Add header branding to PDF document */
 function addPdfHeader(doc: jsPDF, title: string, subtitle: string) {

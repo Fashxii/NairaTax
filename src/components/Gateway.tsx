@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import heroBannerImg from '../../assets/hero_banner.png';
 import { 
   ArrowRight, ShieldCheck, Landmark, Sparkles, 
   Calendar, Camera, MessageSquare, ChevronDown, 
@@ -12,10 +13,11 @@ import { useContent } from '../context/ContentContext';
 import { estimateSavings } from '../utils/taxEngine';
 import { useAppContext } from '../AppShell';
 import { validateContact, sanitize } from '../utils/validators';
+import { findUserByEmail, registerUser } from '../utils/authStore';
+import { generateOTP, sendOTPEmail } from '../utils/otpService';
 
 export default function Gateway() {
-  const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemoCtx, theme, onToggleTheme } = useAppContext();
-  const onGuestDemo = onGuestDemoCtx;
+  const { handleGatewayNext: onNext, theme, onToggleTheme } = useAppContext();
   const navigate = useNavigate();
   const onAdminLogin = () => navigate('/admin');
   const { content } = useContent();
@@ -25,8 +27,12 @@ export default function Gateway() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
+  // Registration flow state
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [fullName, setFullName] = useState('');
+
   // Savings Calculator Slider State
-  const [monthlyIncome, setMonthlyIncome] = useState<number>(850000); // 850k default
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(850000);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,14 +42,54 @@ export default function Gateway() {
       setError(result.error || 'Invalid input');
       return;
     }
+
+    // If new user flow, require full name
+    if (isNewUser && !fullName.trim()) {
+      setError('Please enter your full name to create an account.');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
 
-    // Simulate network delay
-    setTimeout(() => {
+    // Check if user exists
+    const existingUser = findUserByEmail(cleaned);
+
+    if (!existingUser && !isNewUser) {
+      // User not found — prompt for registration
+      setIsNewUser(true);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!existingUser && isNewUser) {
+      // Register the new user
+      try {
+        registerUser(cleaned, fullName.trim(), accountType);
+      } catch (err: any) {
+        setError(err.message || 'Registration failed.');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Check if user is active
+    const user = findUserByEmail(cleaned);
+    if (user && !user.isActive) {
+      setError('This account has been suspended. Contact your administrator.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Generate and send OTP to user's email
+    const otp = generateOTP();
+    sendOTPEmail(cleaned, otp).then(() => {
       setIsLoading(false);
       onNext(accountType, cleaned);
-    }, 1000);
+    }).catch(() => {
+      setIsLoading(false);
+      setError('Failed to send verification code. Please try again.');
+    });
   };
 
   // Tax calculations based on slider values — uses shared engine
@@ -118,11 +164,11 @@ export default function Gateway() {
               )}
             </button>
             <button 
-              onClick={() => onGuestDemo?.('individual')}
+              onClick={onAdminLogin}
               className="hidden sm:flex items-center space-x-1 text-xs font-bold text-[#013220] hover:bg-surface-container/50 px-3.5 py-2 rounded-lg border border-outline-variant transition-all cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-accent-green mr-1" />
-              <span>Explore Interactive Demo</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-accent-green mr-1" />
+              <span>Staff Portal</span>
             </button>
             <button 
               onClick={() => handleSmoothScroll('auth-portal')}
@@ -133,6 +179,33 @@ export default function Gateway() {
           </div>
         </div>
       </header>
+
+      {/* Hero Banner Image */}
+      <div className="relative w-full h-48 md:h-64 lg:h-72 overflow-hidden">
+        <img
+          src={heroBannerImg}
+          alt="Lagos skyline — Nigeria's financial hub"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#013220]/80 via-[#013220]/50 to-transparent" />
+        <div className="absolute inset-0 flex items-center">
+          <div className="max-w-7xl mx-auto px-6 w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4ADE80] mb-2">Nigeria's #1 Self-Service Tax Platform</p>
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-tight max-w-lg">
+                File. Calculate.<br />Stay Compliant.
+              </h2>
+              <p className="text-xs md:text-sm text-white/70 mt-2 max-w-md leading-relaxed">
+                Trusted by 25,000+ Nigerian taxpayers and SMEs for automated PIT, CIT & VAT filing.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </div>
 
       {/* 2. Main Landing Page Sections */}
       <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-8 md:py-12 space-y-16">
@@ -184,11 +257,11 @@ export default function Gateway() {
             {/* CTA Option Grid */}
             <div className="flex flex-col sm:flex-row gap-4 pt-2">
               <button 
-                onClick={() => onGuestDemo?.('individual')}
+                onClick={() => handleSmoothScroll('auth-portal')}
                 className="flex-1 sm:flex-none h-13 px-6 bg-white border-2 border-[#013220] text-[#013220] font-bold rounded-xl hover:bg-surface-container/30 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs"
               >
-                <Sparkles className="w-5 h-5 text-accent-green" />
-                <span>{content.gateway.heroCta1Text}</span>
+                <ShieldCheck className="w-5 h-5 text-accent-green" />
+                <span>Start Tax Filing</span>
               </button>
               <button 
                 onClick={() => handleSmoothScroll('savings-calc')}
@@ -240,9 +313,30 @@ export default function Gateway() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {isNewUser && (
+                  <div className="space-y-1.5 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                    <p className="text-xs font-bold text-emerald-900">New Account Registration</p>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block" htmlFor="full-name-landing">
+                      Full Legal Name / Business Registered Name
+                    </label>
+                    <input
+                      id="full-name-landing"
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => {
+                        setFullName(e.target.value);
+                        if (error) setError('');
+                      }}
+                      className="w-full h-10 px-3 py-2 bg-white border border-outline rounded-lg text-on-surface text-xs focus:outline-none focus:border-[#013220]"
+                      placeholder={accountType === 'individual' ? 'e.g. Adebayo Ogunlade' : 'e.g. Apex Ventures Ltd'}
+                      autoFocus
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block" htmlFor="contact-method-landing">
-                    WhatsApp Phone Number or Email
+                    Email Address
                   </label>
                   <input
                     id="contact-method-landing"
@@ -253,7 +347,7 @@ export default function Gateway() {
                       if (error) setError('');
                     }}
                     className="w-full h-12 px-4 py-2 bg-background border border-outline rounded-xl text-on-surface text-sm placeholder:text-on-surface-variant/40 focus:outline-none focus:border-[#013220] focus:ring-1 focus:ring-[#013220] transition-all font-semibold"
-                    placeholder={accountType === 'individual' ? 'e.g., +234 803 123 4567' : 'e.g., filings@company.ng'}
+                    placeholder="e.g. user@domain.ng"
                   />
                   {error && (
                     <p className="text-xs text-error font-medium mt-1">{error}</p>

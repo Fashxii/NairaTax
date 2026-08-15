@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, ShieldCheck, Landmark } from 'lucide-react';
 import { generateTaxReceipt } from '../utils/pdfGenerator';
+import { TaxFiling, UserSession } from '../types';
 
 interface TaxReceiptModalProps {
   filing: TaxFiling | null;

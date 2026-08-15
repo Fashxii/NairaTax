@@ -9,6 +9,7 @@ import {
 import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { validateEmail, sanitize } from '../utils/validators';
+import { useToast } from './Toast';
 
 const VAT_RATE = 0.075; // 7.5% Nigeria VAT
 
@@ -94,6 +95,7 @@ const statusConfig: Record<InvoiceStatus, { color: string; bg: string; icon: Rea
 };
 
 export default function InvoiceManager() {
+  const { showToast } = useToast();
   const [invoices, setInvoices] = usePersistedState<Invoice[]>('invoices', SAMPLE_INVOICES);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -153,7 +155,7 @@ export default function InvoiceManager() {
     if (!cleanName || !newDueDate) return;
 
     if (cleanEmail && !validateEmail(cleanEmail).valid) {
-      alert('Please enter a valid client email address.');
+      showToast('warning', 'Validation Error', 'Please enter a valid client email address.');
       return;
     }
 

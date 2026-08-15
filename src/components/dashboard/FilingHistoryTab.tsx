@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { motion } from 'motion/react';
 import { Download, FileText } from 'lucide-react';
 import { UserSession, TaxFiling } from '../../types';
+import { useToast } from '../Toast';
 
 interface FilingHistoryTabProps {
   filings: TaxFiling[];
@@ -11,6 +12,7 @@ interface FilingHistoryTabProps {
 }
 
 const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSelectFiling, onStartFiling }: FilingHistoryTabProps) {
+  const { showToast } = useToast();
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -29,7 +31,7 @@ const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSe
         <button
           onClick={() => {
             if (!session.isNINLinked) {
-              alert("Compliance constraint: Please link your NIN first before self-assessment filing.");
+              showToast('error', 'Compliance Constraint', 'Please link your NIN first before self-assessment filing.', 5000);
             } else {
               onStartFiling();
             }
