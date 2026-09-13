@@ -9,10 +9,10 @@ import { AdminDashboardTab, AdminRole, AdminUser } from '../types';
 import CMSManager from './CMSManager';
 import { useAppContext } from '../AppShell';
 import { useNavigate } from 'react-router-dom';
-import { getAllUsers, registerUser, updateUser, deleteUser, hashPassword } from '../utils/authStore';
+import { getAllUsers, registerUser, updateUser, hashPassword } from '../utils/authStore';
 
 // ── Seed data for demo ──────────────────────────────────────────────
-const INITIAL_ADMIN_USERS: AdminUser[] = [
+export const INITIAL_ADMIN_USERS: AdminUser[] = [
   {
     id: 'au1',
     fullName: 'Adebayo Ogunlade',

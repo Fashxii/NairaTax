@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // OTP tokens — only readable/writable by Cloud Functions (server-side)
+    // No client-side direct access
+    match /otp_tokens/{email} {
+      allow read, write: if false;
+    }
+
+    // Rate limit records — only Cloud Functions can access
+    match /otp_rate_limits/{email} {
+      allow read, write: if false;
+    }
+
+    // User profiles — authenticated users can read their own profile
+    match /users/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+      allow write: if false; // Only Cloud Functions can write
+    }
+  }
+}

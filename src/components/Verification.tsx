@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../AppShell';
-import { verifyOTP, generateOTP, sendOTPEmail } from '../utils/otpService';
+import { verifyOTP, sendOTPEmail, listenForDevOTP } from '../utils/otpService';
 import { findUserByEmail } from '../utils/authStore';
 
 export default function Verification() {
@@ -15,8 +15,17 @@ export default function Verification() {
   const [timeLeft, setTimeLeft] = useState(45);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const inputRefs = useRef<HTMLInputElement[]>([]);
+
+  // Local dev mode: listen for OTP dispatched via custom event
+  useEffect(() => {
+    const unsub = listenForDevOTP((otp) => {
+      setDevCode(otp);
+    });
+    return unsub;
+  }, []);
 
   // Timer countdown
   useEffect(() => {
@@ -65,11 +74,10 @@ export default function Verification() {
     e.preventDefault();
     setTimeLeft(45);
     setError('');
-    const newOtp = generateOTP();
-    sendOTPEmail(contactMethod, newOtp);
+    sendOTPEmail(contactMethod);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const enteredCode = code.join('');
     if (enteredCode.length < 6) {
@@ -80,21 +88,24 @@ export default function Verification() {
     setIsVerifying(true);
     setError('');
 
-    // Real OTP verification
-    setTimeout(() => {
+    try {
+      const result = await verifyOTP(contactMethod, enteredCode);
       setIsVerifying(false);
-      const result = verifyOTP(contactMethod, enteredCode);
+
       if (!result.valid) {
         setError(result.error || 'Verification failed.');
         return;
       }
 
-      // Retrieve real user record
-      const user = findUserByEmail(contactMethod);
+      // Retrieve real user record or returned user payload
+      const user = result.user || findUserByEmail(contactMethod);
       const fullName = user?.fullName || 'Taxpayer';
 
       onVerify(fullName);
-    }, 800);
+    } catch (err: any) {
+      setIsVerifying(false);
+      setError('Verification service error. Please try again.');
+    }
   };
 
   // Mask email or phone number for safety
@@ -156,6 +167,16 @@ export default function Verification() {
               We sent a 6-digit secure access code to <span className="font-bold text-on-surface">{formatContact(contactMethod)}</span>
             </p>
           </section>
+
+          {/* DEV MODE BANNER — only shows when server isn't available */}
+          {devCode && (
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 text-center">
+              <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-1">🔧 Dev Mode — No Email Server</p>
+              <p className="text-amber-800 text-sm font-semibold mb-2">Enter this code to continue:</p>
+              <p className="text-3xl font-black text-amber-900 tracking-widest font-mono">{devCode}</p>
+              <p className="text-[10px] text-amber-600 mt-1">This banner is hidden in production</p>
+            </div>
+          )}
 
           {/* OTP Form */}
           <form onSubmit={handleSubmit} className="space-y-6">

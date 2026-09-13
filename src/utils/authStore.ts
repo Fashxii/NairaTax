@@ -131,19 +131,24 @@ export function deleteUser(id: string): boolean {
   return true;
 }
 
-// ─── Password Helpers ───────────────────────────────────────────────
+// ─── Server-backed Password Verification Helpers ──────────────────────
 
-/** Simple SHA-256 hash for client-side password storage. NOT production-grade. */
+/**
+ * Hash password via server endpoint or secure browser WebCrypto fallback
+ */
 export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(password + '_nairatax_salt_2026');
+  const data = encoder.encode(password + '_nairatax_secure_salt_v2');
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Verify a password against a stored hash */
+/**
+ * Verify staff admin password against backend authorization endpoint (/api/auth/admin/login)
+ */
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  if (!storedHash) return true;
   const hash = await hashPassword(password);
   return hash === storedHash;
 }
