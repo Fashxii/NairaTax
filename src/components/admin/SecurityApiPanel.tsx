@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Key, ShieldAlert, Copy, RefreshCw, Plus, Check, Trash2, Globe } from 'lucide-react';
+import { Key, ShieldAlert, Copy, Plus, Check, Trash2, Globe } from 'lucide-react';
 import { useToast } from '../Toast';
 
 export interface ApiKeyRecord {

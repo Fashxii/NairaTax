@@ -30,6 +30,18 @@ enum TransactionType {
   DEBIT
 }
 
+enum UserRole {
+  TAXPAYER
+  SUPER_ADMIN
+  CONTENT_MANAGER
+  REVIEWER
+}
+
+enum AccountType {
+  INDIVIDUAL
+  BUSINESS
+}
+
 // -----------------------------------------------------------------------------
 // MODELS
 // -----------------------------------------------------------------------------
@@ -39,11 +51,30 @@ model User {
   email             String             @unique
   fullName          String?
   phone             String?
+  passwordHash      String?
+  accountType       AccountType        @default(INDIVIDUAL)
+  role              UserRole           @default(TAXPAYER)
+  isActive          Boolean            @default(true)
+  lastLogin         DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   connectedAccounts ConnectedAccount[]
+  otpTokens         OtpToken[]
 
   @@map("users")
+}
+
+model OtpToken {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [email], references: [email], onDelete: Cascade)
+
+  @@index([email])
+  @@map("otp_tokens")
 }
 
 model ConnectedAccount {

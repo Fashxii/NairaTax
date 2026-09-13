@@ -24,7 +24,7 @@ export interface AppContext {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 
-  // Navigation handlers
+  handleGuestDemo: (accountType: AccountType) => void;
   handleGatewayNext: (accountType: AccountType, contactMethod: string) => void;
   handleVerifySuccess: (fullName: string) => void;
   handleLinkSuccess: (nin: string) => void;
@@ -116,10 +116,22 @@ export default function AppShell() {
     navigate('/');
   };
 
+  const handleGuestDemo = (accountType: AccountType) => {
+    setSession((prev) => ({
+      ...prev,
+      accountType,
+      contactMethod: 'demo@diytax9ja.ng',
+      isVerified: true,
+      fullName: 'Demo Taxpayer',
+    }));
+    navigate('/dashboard');
+  };
+
   const ctx: AppContext = {
     session,
     theme,
     onToggleTheme: handleToggleTheme,
+    handleGuestDemo,
     handleGatewayNext,
     handleVerifySuccess,
     handleLinkSuccess,

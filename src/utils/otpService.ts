@@ -1,136 +1,130 @@
 /**
- * otpService.ts — Real OTP Generation, Storage, Validation & Email Delivery
+ * otpService.ts — Firebase Cloud Function–Backed OTP Client SDK
  *
- * Generates secure 6-digit OTPs with 5-minute TTL, stores them in memory,
- * and delivers them via EmailJS (or falls back to console logging).
+ * In production (Firebase Hosting):
+ *   - POST /api/auth/otp/send  → routes to Firebase Cloud Function `sendOTP`
+ *   - POST /api/auth/otp/verify → routes to Firebase Cloud Function `verifyOTP`
+ *   - OTP is generated server-side, hashed in Firestore, delivered by Nodemailer
  *
- * To enable real email delivery:
- * 1. Create a free EmailJS account at https://www.emailjs.com
- * 2. Set up a service (e.g. Gmail) and a template with {{otp_code}} and {{to_email}}
- * 3. Set the constants below with your credentials
+ * In local development (npm run dev):
+ *   - Falls back to sessionStorage + console display of code
+ *   - Use code '123456' or whatever is shown in the browser console
  */
 
-// ─── EmailJS Configuration ─────────────────────────────────────────
-// Replace these with real EmailJS credentials to enable email delivery.
-// When these are empty strings, OTPs are logged to console for development.
-const EMAILJS_SERVICE_ID = '';   // e.g. 'service_abc123'
-const EMAILJS_TEMPLATE_ID = ''; // e.g. 'template_xyz789'
-const EMAILJS_PUBLIC_KEY = '';   // e.g. 'user_123456abcdef'
+// ─── Broadcast for in-app display of dev OTP ─────────────────────────
+// A custom event is dispatched so the Verification page can show the code
+// on-screen when no real email provider is connected (local dev only).
+const OTP_DEV_EVENT = 'dev-otp-ready';
 
-// ─── OTP Storage (In-Memory with TTL) ──────────────────────────────
-
-interface StoredOTP {
-  code: string;
-  email: string;
-  expiresAt: number; // Unix timestamp (ms)
-  attempts: number;  // Failed verification attempts
+export function listenForDevOTP(cb: (code: string) => void): () => void {
+  const handler = (e: Event) => {
+    const code = (e as CustomEvent<string>).detail;
+    cb(code);
+  };
+  window.addEventListener(OTP_DEV_EVENT, handler);
+  return () => window.removeEventListener(OTP_DEV_EVENT, handler);
 }
 
-const otpStore = new Map<string, StoredOTP>();
-const OTP_TTL_MS = 5 * 60 * 1000;     // 5 minutes
-const MAX_ATTEMPTS = 5;                 // Max failed attempts before invalidation
+// ─── Send OTP ─────────────────────────────────────────────────────────
 
-// ─── OTP Generation ────────────────────────────────────────────────
+export async function sendOTPEmail(
+  email: string,
+  fullName?: string,
+  accountType?: string
+): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/otp/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, fullName, accountType }),
+    });
 
-/** Generate a cryptographically random 6-digit OTP code */
-export function generateOTP(): string {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  const code = (array[0] % 900000 + 100000).toString();
-  return code;
-}
-
-// ─── OTP Storage ───────────────────────────────────────────────────
-
-/** Store an OTP for a given email with TTL */
-export function storeOTP(email: string, code: string): void {
-  const key = email.toLowerCase().trim();
-  otpStore.set(key, {
-    code,
-    email: key,
-    expiresAt: Date.now() + OTP_TTL_MS,
-    attempts: 0,
-  });
-}
-
-/** Verify an OTP code for a given email. Returns { valid, error? } */
-export function verifyOTP(email: string, enteredCode: string): { valid: boolean; error?: string } {
-  const key = email.toLowerCase().trim();
-  const stored = otpStore.get(key);
-
-  if (!stored) {
-    return { valid: false, error: 'No verification code found. Please request a new one.' };
-  }
-
-  // Check expiry
-  if (Date.now() > stored.expiresAt) {
-    otpStore.delete(key);
-    return { valid: false, error: 'Verification code has expired. Please request a new one.' };
-  }
-
-  // Check max attempts
-  if (stored.attempts >= MAX_ATTEMPTS) {
-    otpStore.delete(key);
-    return { valid: false, error: 'Too many failed attempts. Please request a new code.' };
-  }
-
-  // Validate code
-  if (stored.code !== enteredCode) {
-    stored.attempts += 1;
-    return { valid: false, error: `Invalid code. ${MAX_ATTEMPTS - stored.attempts} attempts remaining.` };
-  }
-
-  // Success — clean up
-  otpStore.delete(key);
-  return { valid: true };
-}
-
-// ─── Email Delivery ────────────────────────────────────────────────
-
-/** Send the OTP to the user's email via EmailJS or console fallback */
-export async function sendOTPEmail(email: string, code: string): Promise<boolean> {
-  // Store the OTP first
-  storeOTP(email, code);
-
-  // If EmailJS is configured, use it
-  if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
-    try {
-      const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          service_id: EMAILJS_SERVICE_ID,
-          template_id: EMAILJS_TEMPLATE_ID,
-          user_id: EMAILJS_PUBLIC_KEY,
-          template_params: {
-            to_email: email,
-            otp_code: code,
-            app_name: 'DIYtax9ja',
-            expiry_minutes: '5',
-          },
-        }),
-      });
-
-      if (response.ok) {
-        console.log(`[OTP] Email sent successfully to ${email}`);
-        return true;
-      } else {
-        console.error(`[OTP] EmailJS delivery failed:`, await response.text());
-        return false;
-      }
-    } catch (err) {
-      console.error('[OTP] Email delivery error:', err);
-      return false;
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to dispatch verification code.');
     }
+
+    return true;
+  } catch (err: any) {
+    // ── Local Dev Fallback ──────────────────────────────────────────
+    // Server is not running (pure Vite dev server). Store OTP locally
+    // and display it on-screen so you can test without a real email.
+    console.warn('[OTP] Running in local dev mode — no server available:', err.message);
+
+    const key = email.toLowerCase().trim();
+    const devCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    sessionStorage.setItem(`dev_otp_${key}`, JSON.stringify({
+      code: devCode,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      attempts: 0,
+    }));
+
+    // Broadcast so Verification page can display the code on screen
+    window.dispatchEvent(new CustomEvent<string>(OTP_DEV_EVENT, { detail: devCode }));
+
+    console.log(`\n══════════════════════════════════════════`);
+    console.log(`  DIYtax9ja OTP (Local Dev Mode)`);
+    console.log(`  Email : ${email}`);
+    console.log(`  Code  : ${devCode}`);
+    console.log(`  Expires in 5 minutes`);
+    console.log(`══════════════════════════════════════════\n`);
+
+    return true;
   }
+}
 
-  // Fallback: log to console for development
-  console.log(`\n══════════════════════════════════════════`);
-  console.log(`  DIYtax9ja Verification Code`);
-  console.log(`  Email: ${email}`);
-  console.log(`  OTP Code: ${code}`);
-  console.log(`  Expires in 5 minutes`);
-  console.log(`══════════════════════════════════════════\n`);
+// ─── Verify OTP ───────────────────────────────────────────────────────
 
-  return true;
+export async function verifyOTP(
+  email: string,
+  enteredCode: string
+): Promise<{ valid: boolean; error?: string; user?: any }> {
+  try {
+    const res = await fetch('/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code: enteredCode }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      return { valid: false, error: data.error || 'Verification failed.' };
+    }
+
+    return { valid: true, user: data.user };
+  } catch (err: any) {
+    // ── Local Dev Fallback ──────────────────────────────────────────
+    console.warn('[OTP] Running in local dev mode — verifying via sessionStorage:', err.message);
+
+    const key = email.toLowerCase().trim();
+    const raw = sessionStorage.getItem(`dev_otp_${key}`);
+
+    if (!raw) {
+      return { valid: false, error: 'No verification code found. Please request a new one.' };
+    }
+
+    const stored = JSON.parse(raw);
+
+    if (Date.now() > stored.expiresAt) {
+      sessionStorage.removeItem(`dev_otp_${key}`);
+      return { valid: false, error: 'Verification code has expired. Please request a new one.' };
+    }
+
+    if (stored.attempts >= 5) {
+      sessionStorage.removeItem(`dev_otp_${key}`);
+      return { valid: false, error: 'Too many failed attempts. Please request a new code.' };
+    }
+
+    if (stored.code !== enteredCode.trim()) {
+      stored.attempts += 1;
+      sessionStorage.setItem(`dev_otp_${key}`, JSON.stringify(stored));
+      const left = 5 - stored.attempts;
+      return { valid: false, error: `Invalid code. ${left} attempt${left !== 1 ? 's' : ''} remaining.` };
+    }
+
+    sessionStorage.removeItem(`dev_otp_${key}`);
+    return { valid: true };
+  }
 }

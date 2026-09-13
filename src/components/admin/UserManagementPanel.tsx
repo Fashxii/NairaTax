@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserCheck, Shield, Lock, Activity, X, Plus, Trash2, Key } from 'lucide-react';
+import { Search, UserCheck, Shield, Activity, X, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '../Toast';
 import {
   getAllUsers,

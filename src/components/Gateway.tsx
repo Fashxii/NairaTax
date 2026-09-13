@@ -14,10 +14,10 @@ import { estimateSavings } from '../utils/taxEngine';
 import { useAppContext } from '../AppShell';
 import { validateContact, sanitize } from '../utils/validators';
 import { findUserByEmail, registerUser } from '../utils/authStore';
-import { generateOTP, sendOTPEmail } from '../utils/otpService';
+import { sendOTPEmail } from '../utils/otpService';
 
 export default function Gateway() {
-  const { handleGatewayNext: onNext, theme, onToggleTheme } = useAppContext();
+  const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemo, theme, onToggleTheme } = useAppContext();
   const navigate = useNavigate();
   const onAdminLogin = () => navigate('/admin');
   const { content } = useContent();
@@ -81,15 +81,16 @@ export default function Gateway() {
       return;
     }
 
-    // Generate and send OTP to user's email
-    const otp = generateOTP();
-    sendOTPEmail(cleaned, otp).then(() => {
-      setIsLoading(false);
-      onNext(accountType, cleaned);
-    }).catch(() => {
-      setIsLoading(false);
-      setError('Failed to send verification code. Please try again.');
-    });
+    // Send OTP via server-backed OTP service
+    sendOTPEmail(cleaned, isNewUser ? fullName.trim() : undefined, accountType)
+      .then(() => {
+        setIsLoading(false);
+        onNext(accountType, cleaned);
+      })
+      .catch(() => {
+        setIsLoading(false);
+        setError('Failed to send verification code. Please try again.');
+      });
   };
 
   // Tax calculations based on slider values — uses shared engine
