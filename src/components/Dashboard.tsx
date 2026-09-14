@@ -5,7 +5,7 @@ import {
   LogOut, ShieldAlert, ShieldCheck, Download, 
   Send, FileText, Info,
   Camera, Check, Upload, X, ArrowRight, Sparkles, RefreshCw,
-  Calendar, Sun, Moon, Users
+  Calendar, Sun, Moon, Users, Building, Receipt, Stamp
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
@@ -26,6 +26,9 @@ import {
   FilingHistoryTab,
   EducationTab,
   SettingsTab,
+  CITCalculatorTab,
+  WHTTrackerTab,
+  StampDutyCGTTab,
   SyncTransaction,
 } from './dashboard/index';
 
@@ -499,6 +502,9 @@ export default function Dashboard() {
             )}
 
             {[
+              { tab: 'cit' as DashboardTab, icon: Building, label: 'CIT Calculator' },
+              { tab: 'wht' as DashboardTab, icon: Receipt, label: 'WHT Tracker' },
+              { tab: 'stamp-cgt' as DashboardTab, icon: Stamp, label: 'Stamp Duty & CGT' },
               { tab: 'tcc' as DashboardTab, icon: ShieldCheck, label: 'TCC Readiness' },
               { tab: 'invoicing' as DashboardTab, icon: FileText, label: 'E-Invoicing' },
               { tab: 'cms' as DashboardTab, icon: LayoutDashboard, label: 'CMS Admin' },
@@ -889,6 +895,18 @@ export default function Dashboard() {
 
             {!isFilingFlow && activeTab === 'cms' && (
               <CMSManager />
+            )}
+
+            {!isFilingFlow && activeTab === 'cit' && (
+              <CITCalculatorTab />
+            )}
+
+            {!isFilingFlow && activeTab === 'wht' && (
+              <WHTTrackerTab />
+            )}
+
+            {!isFilingFlow && activeTab === 'stamp-cgt' && (
+              <StampDutyCGTTab />
             )}
 
             {!isFilingFlow && activeTab === 'overview' && (

@@ -250,6 +250,219 @@ export function estimateSavings(monthlyIncome: number): SavingsEstimate {
   };
 }
 
+// ─── Stamp Duty Calculator ───────────────────────────────────────────────────
+
+export interface StampDutyCategory {
+  id: string;
+  label: string;
+  description: string;
+  rateType: 'flat' | 'adValorem';
+  flatAmount?: number;
+  adValoremRate?: number;
+  threshold?: number;
+}
+
+export const STAMP_DUTY_CATEGORIES: StampDutyCategory[] = [
+  {
+    id: 'bank-deposit',
+    label: 'Electronic Bank Deposits',
+    description: 'Deposits ≥ ₦10,000 into any bank account',
+    rateType: 'flat',
+    flatAmount: 50,
+    threshold: 10000,
+  },
+  {
+    id: 'lease',
+    label: 'Lease / Tenancy Agreement',
+    description: 'Rental or lease agreements for property',
+    rateType: 'adValorem',
+    adValoremRate: 0.0078, // ₦1.56 per ₦200 ≈ 0.78%
+  },
+  {
+    id: 'share-transfer',
+    label: 'Share / Stock Transfer',
+    description: 'Transfer of shares and stock certificates',
+    rateType: 'adValorem',
+    adValoremRate: 0.00375, // 75 kobo per ₦200 ≈ 0.375%
+  },
+  {
+    id: 'mortgage-deed',
+    label: 'Mortgage / Deed of Assignment',
+    description: 'Mortgage documents and property deeds',
+    rateType: 'adValorem',
+    adValoremRate: 0.0075, // ₦1.50 per ₦200 ≈ 0.75%
+  },
+  {
+    id: 'insurance-policy',
+    label: 'Insurance Policy',
+    description: 'Life and general insurance policies',
+    rateType: 'adValorem',
+    adValoremRate: 0.005, // 0.5%
+  },
+  {
+    id: 'power-of-attorney',
+    label: 'Power of Attorney',
+    description: 'Legal power of attorney documents',
+    rateType: 'flat',
+    flatAmount: 500,
+  },
+  {
+    id: 'contract-agreement',
+    label: 'Contract / Agreement',
+    description: 'Commercial contracts and service agreements',
+    rateType: 'adValorem',
+    adValoremRate: 0.0075, // ₦1.50 per ₦200 ≈ 0.75%
+  },
+  {
+    id: 'receipt',
+    label: 'Receipt (above ₦4)',
+    description: 'Receipts for payments above ₦4',
+    rateType: 'flat',
+    flatAmount: 1,
+  },
+];
+
+export interface StampDutyResult {
+  category: string;
+  instrumentValue: number;
+  rateApplied: string;
+  dutyAmount: number;
+  isAboveThreshold: boolean;
+}
+
+/**
+ * Calculate stamp duty for a given instrument category and value.
+ */
+export function calculateStampDuty(
+  categoryId: string,
+  instrumentValue: number
+): StampDutyResult {
+  const cat = STAMP_DUTY_CATEGORIES.find(c => c.id === categoryId);
+  if (!cat) {
+    return {
+      category: 'Unknown',
+      instrumentValue,
+      rateApplied: 'N/A',
+      dutyAmount: 0,
+      isAboveThreshold: false,
+    };
+  }
+
+  const isAboveThreshold = cat.threshold ? instrumentValue >= cat.threshold : true;
+
+  let dutyAmount = 0;
+  let rateApplied = '';
+
+  if (!isAboveThreshold) {
+    rateApplied = 'Below threshold — no duty';
+    dutyAmount = 0;
+  } else if (cat.rateType === 'flat') {
+    dutyAmount = cat.flatAmount || 0;
+    rateApplied = `Flat ₦${(cat.flatAmount || 0).toLocaleString()}`;
+  } else {
+    dutyAmount = Math.round(instrumentValue * (cat.adValoremRate || 0));
+    rateApplied = `${((cat.adValoremRate || 0) * 100).toFixed(3)}% ad valorem`;
+  }
+
+  return {
+    category: cat.label,
+    instrumentValue,
+    rateApplied,
+    dutyAmount,
+    isAboveThreshold,
+  };
+}
+
+// ─── Capital Gains Tax (CGT) Calculator ──────────────────────────────────────
+
+/** Nigerian CGT rate: flat 10% on chargeable gains */
+export const CGT_RATE = 0.10;
+
+export interface CGTInput {
+  assetDescription: string;
+  disposalProceeds: number;
+  acquisitionCost: number;
+  improvementCosts: number;
+  legalFees: number;
+  agentCommission: number;
+  /** Whether asset is shares traded on NSE (exempt) */
+  isNSEListed: boolean;
+  /** Whether disposal is a gift between family members (exempt) */
+  isFamilyGift: boolean;
+}
+
+export interface CGTResult {
+  assetDescription: string;
+  disposalProceeds: number;
+  acquisitionCost: number;
+  allowableExpenses: number;
+  chargeableGain: number;
+  isExempt: boolean;
+  exemptionReason?: string;
+  cgtRate: number;
+  cgtLiability: number;
+  netProceeds: number;
+}
+
+/**
+ * Calculate Capital Gains Tax on disposal of a capital asset.
+ */
+export function calculateCGT(input: CGTInput): CGTResult {
+  // Check exemptions
+  if (input.isNSEListed) {
+    return {
+      assetDescription: input.assetDescription,
+      disposalProceeds: input.disposalProceeds,
+      acquisitionCost: input.acquisitionCost,
+      allowableExpenses: 0,
+      chargeableGain: 0,
+      isExempt: true,
+      exemptionReason: 'Shares listed on the Nigerian Stock Exchange are exempt from CGT (Finance Act 2021)',
+      cgtRate: 0,
+      cgtLiability: 0,
+      netProceeds: input.disposalProceeds,
+    };
+  }
+
+  if (input.isFamilyGift) {
+    return {
+      assetDescription: input.assetDescription,
+      disposalProceeds: input.disposalProceeds,
+      acquisitionCost: input.acquisitionCost,
+      allowableExpenses: 0,
+      chargeableGain: 0,
+      isExempt: true,
+      exemptionReason: 'Gifts between family members are exempt from CGT',
+      cgtRate: 0,
+      cgtLiability: 0,
+      netProceeds: input.disposalProceeds,
+    };
+  }
+
+  const allowableExpenses =
+    input.improvementCosts + input.legalFees + input.agentCommission;
+
+  const chargeableGain = Math.max(
+    0,
+    input.disposalProceeds - input.acquisitionCost - allowableExpenses
+  );
+
+  const cgtLiability = Math.round(chargeableGain * CGT_RATE);
+  const netProceeds = input.disposalProceeds - cgtLiability;
+
+  return {
+    assetDescription: input.assetDescription,
+    disposalProceeds: input.disposalProceeds,
+    acquisitionCost: input.acquisitionCost,
+    allowableExpenses,
+    chargeableGain,
+    isExempt: false,
+    cgtRate: CGT_RATE,
+    cgtLiability,
+    netProceeds,
+  };
+}
+
 // ─── Naira Formatting Utility ────────────────────────────────────────────────
 
 /** Formats a number as Naira currency string */

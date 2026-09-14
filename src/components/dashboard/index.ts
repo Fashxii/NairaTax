@@ -4,6 +4,9 @@ export { default as TaxPlannerTab } from './TaxPlannerTab';
 export { default as FilingHistoryTab } from './FilingHistoryTab';
 export { default as EducationTab } from './EducationTab';
 export { default as SettingsTab } from './SettingsTab';
+export { default as CITCalculatorTab } from './CITCalculatorTab';
+export { default as WHTTrackerTab } from './WHTTrackerTab';
+export { default as StampDutyCGTTab } from './StampDutyCGTTab';
 
 // Re-export shared types
 export type { SyncTransaction } from './OverviewTab';
