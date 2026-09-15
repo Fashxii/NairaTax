@@ -6,12 +6,18 @@
  */
 
 const PREFIX = 'nairatax_';
+const memoryStore = new Map<string, string>();
 
 export function getStored<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(PREFIX + key);
-    if (raw === null) return fallback;
-    return JSON.parse(raw) as T;
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(PREFIX + key);
+      if (raw === null) return fallback;
+      return JSON.parse(raw) as T;
+    }
+    const mem = memoryStore.get(PREFIX + key);
+    if (!mem) return fallback;
+    return JSON.parse(mem) as T;
   } catch {
     return fallback;
   }
@@ -19,17 +25,35 @@ export function getStored<T>(key: string, fallback: T): T {
 
 export function setStored<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PREFIX + key, JSON.stringify(value));
+      return;
+    }
+    memoryStore.set(PREFIX + key, JSON.stringify(value));
   } catch {
-    // Storage full or unavailable — fail silently
+    memoryStore.set(PREFIX + key, JSON.stringify(value));
   }
 }
 
 export function removeStored(key: string): void {
-  localStorage.removeItem(PREFIX + key);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(PREFIX + key);
+    }
+    memoryStore.delete(PREFIX + key);
+  } catch {
+    memoryStore.delete(PREFIX + key);
+  }
 }
 
 export function clearAll(): void {
-  const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX));
-  keys.forEach(k => localStorage.removeItem(k));
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX));
+      keys.forEach(k => localStorage.removeItem(k));
+    }
+    memoryStore.clear();
+  } catch {
+    memoryStore.clear();
+  }
 }
