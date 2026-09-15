@@ -31,7 +31,20 @@ export interface RegisteredUser {
 const STORE_KEY = 'registered_users';
 
 // ─── Seed Super Admin ───────────────────────────────────────────────
-// Ensures at least one super_admin account exists on first load.
+// Ensures super_admin accounts exist on first load.
+
+export const SAMSON_SUPER_ADMIN: RegisteredUser = {
+  id: 'admin_super_samson',
+  email: 'samsontila@gmail.com',
+  fullName: 'Samson Tila',
+  accountType: 'individual',
+  role: 'super_admin',
+  // SHA-256 of "Indiaolover22_nairatax_secure_salt_v2"
+  passwordHash: 'd8461608057bbc8338cc9ca2551acb2d828d680679662e5cd6ce8d2012f91cc4',
+  isActive: true,
+  createdAt: '2026-09-14T00:00:00.000Z',
+  lastLogin: null,
+};
 
 const SEED_ADMIN: RegisteredUser = {
   id: 'admin_seed_001',
@@ -45,12 +58,29 @@ const SEED_ADMIN: RegisteredUser = {
   lastLogin: null,
 };
 
-function ensureSeedAdmin(): void {
+export function ensureSeedAdmin(): void {
   const users = getStored<RegisteredUser[]>(STORE_KEY, []);
-  const hasAdmin = users.some((u) => u.role === 'super_admin');
-  if (!hasAdmin) {
-    setStored(STORE_KEY, [...users, SEED_ADMIN]);
+  
+  // Guarantee Samson Tila super_admin account exists and has the correct password hash & active status
+  const samsonIndex = users.findIndex((u) => u.email.toLowerCase() === 'samsontila@gmail.com');
+  if (samsonIndex === -1) {
+    users.push(SAMSON_SUPER_ADMIN);
+  } else {
+    users[samsonIndex] = {
+      ...users[samsonIndex],
+      fullName: users[samsonIndex].fullName || SAMSON_SUPER_ADMIN.fullName,
+      role: 'super_admin',
+      isActive: true,
+      passwordHash: SAMSON_SUPER_ADMIN.passwordHash,
+    };
   }
+
+  // Also guarantee default seed admin exists
+  if (!users.some((u) => u.email.toLowerCase() === 'admin@diytax9ja.ng')) {
+    users.push(SEED_ADMIN);
+  }
+
+  setStored(STORE_KEY, users);
 }
 
 // Run seed check on module load

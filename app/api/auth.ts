@@ -29,8 +29,22 @@ interface ServerUser {
 const otpStore = new Map<string, ServerOTP>();
 const userStore = new Map<string, ServerUser>();
 
-// Seed Super Admin if empty
+// Seed Super Admins if empty
 if (userStore.size === 0) {
+  const samsonEmail = 'samsontila@gmail.com';
+  const samsonHash = crypto.pbkdf2Sync('Indiaolover22', 'nairatax_salt', 10000, 64, 'sha512').toString('hex');
+  userStore.set(samsonEmail.toLowerCase(), {
+    id: 'admin_super_samson',
+    email: samsonEmail,
+    fullName: 'Samson Tila',
+    accountType: 'individual',
+    role: 'super_admin',
+    passwordHash: samsonHash,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    lastLogin: null,
+  });
+
   const adminEmail = 'admin@diytax9ja.ng';
   // Default hashed password for seed admin ("admin123")
   const defaultHash = crypto.pbkdf2Sync('admin123', 'nairatax_salt', 10000, 64, 'sha512').toString('hex');
