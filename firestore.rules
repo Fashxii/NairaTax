@@ -17,5 +17,15 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.token.email == email;
       allow write: if false; // Only Cloud Functions can write
     }
+
+    // SMTP settings — server-only (Admin SDK bypasses rules)
+    match /system_config/{docId} {
+      allow read, write: if false;
+    }
+
+    // Email audit logs — server-only
+    match /email_audit_logs/{docId} {
+      allow read, write: if false;
+    }
   }
 }

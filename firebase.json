@@ -23,6 +23,14 @@
         "function": "verifyOTP"
       },
       {
+        "source": "/api/email/send",
+        "function": "sendEmailFn"
+      },
+      {
+        "source": "/api/email/test-smtp",
+        "function": "testSMTP"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

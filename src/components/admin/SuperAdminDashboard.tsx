@@ -11,6 +11,10 @@ import {
   ShieldAlert,
   Key,
   CheckCircle,
+  Mail,
+  Settings,
+  Layers,
+  BarChart3,
 } from 'lucide-react';
 import { useAppContext } from '../../AppShell';
 import { useNavigate } from 'react-router-dom';
@@ -18,13 +22,18 @@ import SystemSettingsPanel from './SystemSettingsPanel';
 import UserManagementPanel from './UserManagementPanel';
 import SecurityApiPanel from './SecurityApiPanel';
 import AuditLogViewer from './AuditLogViewer';
+import EmailSettingsPanel from './EmailSettingsPanel';
+import EmailTemplateManager from './EmailTemplateManager';
+import EmailAuditLogViewer from './EmailAuditLogViewer';
 
-export type SuperAdminTab = 'settings' | 'users' | 'security' | 'audit';
+export type SuperAdminTab = 'settings' | 'users' | 'security' | 'audit' | 'communications';
+export type EmailSubTab = 'smtp' | 'templates' | 'delivery-logs';
 
 export default function SuperAdminDashboard() {
   const { session, handleLogout, theme, onToggleTheme } = useAppContext();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SuperAdminTab>('settings');
+  const [emailSubTab, setEmailSubTab] = useState<EmailSubTab>('smtp');
 
   const onLogout = () => {
     handleLogout();
@@ -170,6 +179,18 @@ export default function SuperAdminDashboard() {
             <FileText className="w-4 h-4" />
             <span>Audit Logs</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('communications')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'communications'
+                ? 'bg-primary-container text-white shadow-xs'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+            }`}
+          >
+            <Mail className="w-4 h-4" />
+            <span>Communications</span>
+          </button>
         </div>
 
         {/* Tab View Container */}
@@ -178,6 +199,46 @@ export default function SuperAdminDashboard() {
           {activeTab === 'users' && <UserManagementPanel key="users" />}
           {activeTab === 'security' && <SecurityApiPanel key="security" />}
           {activeTab === 'audit' && <AuditLogViewer key="audit" />}
+          {activeTab === 'communications' && (
+            <div key="communications" className="space-y-5">
+              {/* Email Sub-tab Navigation */}
+              <div className="bg-white border border-outline-variant rounded-2xl p-2 shadow-xs flex items-center gap-2">
+                <button
+                  onClick={() => setEmailSubTab('smtp')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    emailSubTab === 'smtp' ? 'bg-emerald-50 text-emerald-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  SMTP Setup
+                </button>
+                <button
+                  onClick={() => setEmailSubTab('templates')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    emailSubTab === 'templates' ? 'bg-violet-50 text-violet-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Templates
+                </button>
+                <button
+                  onClick={() => setEmailSubTab('delivery-logs')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    emailSubTab === 'delivery-logs' ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
+                  }`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  Delivery Logs
+                </button>
+              </div>
+
+              <AnimatePresence mode="wait">
+                {emailSubTab === 'smtp' && <EmailSettingsPanel key="email-smtp" />}
+                {emailSubTab === 'templates' && <EmailTemplateManager key="email-templates" />}
+                {emailSubTab === 'delivery-logs' && <EmailAuditLogViewer key="email-logs" />}
+              </AnimatePresence>
+            </div>
+          )}
         </AnimatePresence>
       </main>
     </div>
