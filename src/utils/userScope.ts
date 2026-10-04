@@ -51,9 +51,17 @@ export function scopedKey(session: Pick<UserSession, 'contactMethod'>, key: stri
   return `${key}:${owner}`;
 }
 
+import { useEffect, useCallback, useRef } from 'react';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
 /**
- * Per-user persisted state. Real users start with `emptyValue`;
- * the guest demo account starts with `demoValue`.
+ * Per-user persisted state.
+ * - Backed by localStorage for 0ms initial load.
+ * - Synchronizes with Firestore cloud persistence under users/{email}/user_data/{key}
+ *   for verified real accounts.
+ * - Automatically migrates existing local data to Firestore on first cloud connection.
+ * - Kept strictly local for the demo account.
  */
 export function useUserPersistedState<T>(
   key: string,
@@ -61,6 +69,75 @@ export function useUserPersistedState<T>(
   demoValue?: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
   const { session } = useSession();
-  const initial = isDemoSession(session) && demoValue !== undefined ? demoValue : emptyValue;
-  return usePersistedState<T>(scopedKey(session, key), initial);
+  const isDemo = isDemoSession(session);
+  const initial = isDemo && demoValue !== undefined ? demoValue : emptyValue;
+  const storageKey = scopedKey(session, key);
+  const [value, setLocalValue] = usePersistedState<T>(storageKey, initial);
+
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
+  // Cloud sync for verified non-demo users
+  useEffect(() => {
+    if (isDemo || !session.isVerified || !session.contactMethod) return;
+
+    let isMounted = true;
+    const cleanEmail = session.contactMethod.toLowerCase().trim();
+    const docRef = doc(db, 'users', cleanEmail, 'user_data', key);
+
+    // Initial fetch from Firestore
+    getDoc(docRef)
+      .then((snap) => {
+        if (!isMounted) return;
+        if (snap.exists()) {
+          const remoteData = snap.data()?.data as T;
+          if (remoteData !== undefined) {
+            setLocalValue(remoteData);
+          }
+        } else {
+          // If Firestore is empty but user has existing local data, migrate to Firestore
+          const current = valueRef.current;
+          const hasLocalData = Array.isArray(current)
+            ? current.length > 0
+            : typeof current === 'number'
+            ? current > 0
+            : current !== null && current !== undefined && current !== emptyValue;
+
+          if (hasLocalData) {
+            setDoc(docRef, { data: current, updatedAt: serverTimestamp() }, { merge: true }).catch((err) => {
+              console.warn(`[Firestore Migration] ${key}:`, err?.message);
+            });
+          }
+        }
+      })
+      .catch((err) => {
+        // Fallback gracefully to local storage if offline or permissions pending
+        console.warn(`[Firestore Sync] ${key}:`, err?.message);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [key, session.contactMethod, session.isVerified, isDemo, setLocalValue, emptyValue]);
+
+  const setValue = useCallback(
+    (action: T | ((prev: T) => T)) => {
+      setLocalValue((prev) => {
+        const next = typeof action === 'function' ? (action as (prev: T) => T)(prev) : action;
+        // Asynchronously persist to Firestore for verified users
+        if (!isDemo && session.isVerified && session.contactMethod) {
+          const cleanEmail = session.contactMethod.toLowerCase().trim();
+          const docRef = doc(db, 'users', cleanEmail, 'user_data', key);
+          setDoc(docRef, { data: next, updatedAt: serverTimestamp() }, { merge: true }).catch((err) => {
+            console.warn(`[Firestore Write] ${key}:`, err?.message);
+          });
+        }
+        return next;
+      });
+    },
+    [isDemo, session.isVerified, session.contactMethod, key, setLocalValue]
+  );
+
+  return [value, setValue];
 }
+

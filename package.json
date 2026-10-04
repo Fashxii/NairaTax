@@ -14,6 +14,7 @@
     "deploy": "npm --prefix functions run build && vite build && npx firebase-tools deploy --only functions,hosting,firestore --non-interactive"
   },
   "dependencies": {
+    "firebase": "^11.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.546.0",

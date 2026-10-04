@@ -321,9 +321,35 @@ exports.verifyOTP = functions.https.onRequest({
             accountType: "individual",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         })), { merge: true });
+        // Ensure user exists in Firebase Authentication & set custom claims
+        let authUser;
+        try {
+            authUser = await admin.auth().getUserByEmail(cleanEmail);
+        }
+        catch (authErr) {
+            if (authErr.code === "auth/user-not-found") {
+                authUser = await admin.auth().createUser({
+                    email: cleanEmail,
+                    displayName: userData.fullName || cleanEmail.split("@")[0],
+                });
+            }
+            else {
+                throw authErr;
+            }
+        }
+        await admin.auth().setCustomUserClaims(authUser.uid, {
+            role,
+            email: cleanEmail,
+        });
+        const customToken = await admin.auth().createCustomToken(authUser.uid, {
+            role,
+            email: cleanEmail,
+        });
         res.status(200).json({
             success: true,
+            customToken,
             user: {
+                uid: authUser.uid,
                 email: cleanEmail,
                 fullName: userData.fullName || "",
                 role,

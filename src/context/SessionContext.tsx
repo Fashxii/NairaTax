@@ -9,6 +9,7 @@ import { createContext, useContext, useCallback, useEffect } from 'react';
 import { UserSession } from '../types';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { removeStored, getStored, setStored } from '../utils/store';
+import { auth, fbSignOut } from '../lib/firebase';
 
 const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -64,6 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // Clear only session state — keep the user registry and per-user data intact.
     removeStored('session_login_time');
     sessionStorage.removeItem('adminRole');
+    fbSignOut(auth).catch(() => {});
   }, [setSession]);
 
   return (
