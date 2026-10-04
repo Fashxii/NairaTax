@@ -11,7 +11,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "vite build && npx firebase-tools deploy --only hosting,firestore --non-interactive"
+    "deploy": "npm --prefix functions run build && vite build && npx firebase-tools deploy --only functions,hosting,firestore --non-interactive"
   },
   "dependencies": {
     "jspdf": "^4.2.1",
