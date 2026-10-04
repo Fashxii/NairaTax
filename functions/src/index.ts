@@ -344,6 +344,7 @@ export const verifyOTP = functions.https.onRequest(
 export const sendEmailFn = functions.https.onRequest(
   {
     cors: true,
+    secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
     region: "us-central1",
   },
   async (req, res) => {
