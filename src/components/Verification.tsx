@@ -74,7 +74,9 @@ export default function Verification() {
     e.preventDefault();
     setTimeLeft(45);
     setError('');
-    sendOTPEmail(contactMethod);
+    sendOTPEmail(contactMethod).catch((err: any) => {
+      setError(err?.message || 'Failed to resend verification code. Please try again.');
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

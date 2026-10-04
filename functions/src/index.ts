@@ -200,8 +200,14 @@ export const sendOTP = functions.https.onRequest(
         });
 
       // Send email via Nodemailer
-      const gmailUser = process.env.GMAIL_USER!;
-      const gmailAppPassword = process.env.GMAIL_APP_PASSWORD!;
+      const gmailUser = (process.env.GMAIL_USER || "").trim();
+      const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, "");
+
+      if (!gmailUser || !gmailAppPassword) {
+        functions.logger.error("[OTP] GMAIL_USER / GMAIL_APP_PASSWORD secrets are not set.");
+        res.status(503).json({ error: "Email service is not configured. Please contact support." });
+        return;
+      }
 
       const transporter = createTransporter(gmailUser, gmailAppPassword);
 
@@ -387,8 +393,8 @@ export const sendEmailFn = functions.https.onRequest(
         });
       } else {
         // Fallback to default Gmail credentials if configured
-        const gmailUser = process.env.GMAIL_USER;
-        const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+        const gmailUser = process.env.GMAIL_USER?.trim();
+        const gmailAppPassword = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "");
 
         if (!gmailUser || !gmailAppPassword) {
           res.status(503).json({

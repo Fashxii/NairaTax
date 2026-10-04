@@ -87,9 +87,9 @@ export default function Gateway() {
         setIsLoading(false);
         onNext(accountType, cleaned);
       })
-      .catch(() => {
+      .catch((err: any) => {
         setIsLoading(false);
-        setError('Failed to send verification code. Please try again.');
+        setError(err?.message || 'Failed to send verification code. Please try again.');
       });
   };
 

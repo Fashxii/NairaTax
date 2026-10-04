@@ -46,7 +46,13 @@ export async function sendOTPEmail(
 
     return true;
   } catch (err: any) {
-    // ── Local Dev Fallback ──────────────────────────────────────────
+    // In production, never fake a dispatch — surface the real error.
+    if (!import.meta.env.DEV) {
+      console.error('[OTP] sendOTP failed:', err.message);
+      throw err;
+    }
+
+    // ── Local Dev Fallback (npm run dev only) ───────────────────────
     // Server is not running (pure Vite dev server). Store OTP locally
     // and display it on-screen so you can test without a real email.
     console.warn('[OTP] Running in local dev mode — no server available:', err.message);
@@ -95,7 +101,13 @@ export async function verifyOTP(
 
     return { valid: true, user: data.user };
   } catch (err: any) {
-    // ── Local Dev Fallback ──────────────────────────────────────────
+    // In production, never verify against client-side storage.
+    if (!import.meta.env.DEV) {
+      console.error('[OTP] verifyOTP network error:', err.message);
+      return { valid: false, error: 'Unable to reach the verification service. Please check your connection and try again.' };
+    }
+
+    // ── Local Dev Fallback (npm run dev only) ───────────────────────
     console.warn('[OTP] Running in local dev mode — verifying via sessionStorage:', err.message);
 
     const key = email.toLowerCase().trim();
