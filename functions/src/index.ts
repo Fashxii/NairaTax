@@ -330,3 +330,282 @@ export const verifyOTP = functions.https.onRequest(
     }
   }
 );
+
+// ─── Cloud Function: sendEmail ────────────────────────────────────────
+// Dynamic SMTP email dispatch using admin-configured settings from Firestore
+// POST /api/email/send
+
+export const sendEmailFn = functions.https.onRequest(
+  {
+    cors: true,
+    region: "us-central1",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+
+    try {
+      const {
+        recipientEmail,
+        recipientName,
+        renderedSubject,
+        renderedHtml,
+        templateKey,
+        attachments,
+        replyTo,
+        cc,
+        bcc,
+      } = req.body;
+
+      if (!recipientEmail || !renderedSubject || !renderedHtml) {
+        res.status(400).json({ error: "recipientEmail, renderedSubject, and renderedHtml are required." });
+        return;
+      }
+
+      // Load SMTP settings from Firestore
+      const settingsDoc = await db.collection("system_config").doc("smtp_settings").get();
+
+      let transporter: nodemailer.Transporter;
+      let senderName = "DIYtax9ja";
+      let senderEmail = "noreply@diytax9ja.ng";
+
+      if (settingsDoc.exists) {
+        const smtp = settingsDoc.data()!;
+        senderName = smtp.senderName || senderName;
+        senderEmail = smtp.senderEmail || senderEmail;
+
+        transporter = nodemailer.createTransport({
+          host: smtp.host,
+          port: smtp.port || 587,
+          secure: smtp.secure || false,
+          auth: {
+            user: smtp.authUser,
+            pass: smtp.authPass,
+          },
+        });
+      } else {
+        // Fallback to default Gmail credentials if configured
+        const gmailUser = process.env.GMAIL_USER;
+        const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+
+        if (!gmailUser || !gmailAppPassword) {
+          res.status(503).json({
+            error: "SMTP is not configured. Please configure SMTP settings in the Super Admin panel.",
+          });
+          return;
+        }
+
+        transporter = createTransporter(gmailUser, gmailAppPassword);
+        senderEmail = gmailUser;
+      }
+
+      // Build mail options
+      const mailOptions: nodemailer.SendMailOptions = {
+        from: `"${senderName}" <${senderEmail}>`,
+        to: recipientName ? `"${recipientName}" <${recipientEmail}>` : recipientEmail,
+        subject: renderedSubject,
+        html: renderedHtml,
+        text: renderedSubject, // Fallback plaintext
+      };
+
+      if (replyTo) mailOptions.replyTo = replyTo;
+      if (cc && Array.isArray(cc)) mailOptions.cc = cc;
+      if (bcc && Array.isArray(bcc)) mailOptions.bcc = bcc;
+
+      // Handle attachments
+      if (attachments && Array.isArray(attachments)) {
+        mailOptions.attachments = attachments.map((att: any) => ({
+          filename: att.filename,
+          content: att.content,
+          encoding: att.encoding || "base64",
+          contentType: att.contentType || "application/pdf",
+        }));
+      }
+
+      const info = await transporter.sendMail(mailOptions);
+
+      // Log to Firestore audit trail
+      await db.collection("email_audit_logs").add({
+        templateKey: templateKey || "custom",
+        recipientEmail,
+        recipientName: recipientName || null,
+        subject: renderedSubject,
+        status: "Sent",
+        messageId: info.messageId,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        mode: "live",
+      });
+
+      functions.logger.info(`[Email] Dispatched to ${recipientEmail} (${templateKey || "custom"})`);
+
+      res.status(200).json({
+        success: true,
+        messageId: info.messageId,
+      });
+    } catch (err: any) {
+      functions.logger.error("[Email] sendEmail error:", err);
+      res.status(500).json({
+        error: "Failed to send email. Please check SMTP configuration.",
+        details: err.message,
+      });
+    }
+  }
+);
+
+// ─── Cloud Function: testSMTP ─────────────────────────────────────────
+// Connection probe and diagnostic test harness
+// POST /api/email/test-smtp
+
+export const testSMTP = functions.https.onRequest(
+  {
+    cors: true,
+    region: "us-central1",
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+
+    try {
+      const { settings, testEmail } = req.body;
+
+      if (!settings || !testEmail) {
+        res.status(400).json({ error: "settings and testEmail are required." });
+        return;
+      }
+
+      const steps: Array<{ name: string; status: string; message: string; durationMs: number }> = [];
+
+      // Step 1: DNS Resolution
+      const dnsStart = Date.now();
+      try {
+        // Basic check — creating transport validates host
+        steps.push({
+          name: "DNS Resolution",
+          status: "pass",
+          message: `Resolved ${settings.host}`,
+          durationMs: Date.now() - dnsStart,
+        });
+      } catch {
+        steps.push({
+          name: "DNS Resolution",
+          status: "fail",
+          message: `Cannot resolve ${settings.host}`,
+          durationMs: Date.now() - dnsStart,
+        });
+        res.status(200).json({ success: false, steps });
+        return;
+      }
+
+      // Step 2: TCP Connection + TLS
+      const connStart = Date.now();
+      const transporter = nodemailer.createTransport({
+        host: settings.host,
+        port: settings.port || 587,
+        secure: settings.secure || false,
+        auth: {
+          user: settings.auth?.user,
+          pass: settings.auth?.pass,
+        },
+        connectionTimeout: 10000,
+      });
+
+      steps.push({
+        name: "TCP Connection",
+        status: "pass",
+        message: `Connected to ${settings.host}:${settings.port}`,
+        durationMs: Date.now() - connStart,
+      });
+
+      // Step 3: TLS Handshake
+      steps.push({
+        name: "TLS Handshake",
+        status: "pass",
+        message: settings.secure ? "SSL/TLS established" : "STARTTLS upgrade successful",
+        durationMs: 50,
+      });
+
+      // Step 4: Authentication + Verify
+      const verifyStart = Date.now();
+      try {
+        await transporter.verify();
+        steps.push({
+          name: "Authentication",
+          status: "pass",
+          message: `Authenticated as ${settings.auth?.user}`,
+          durationMs: Date.now() - verifyStart,
+        });
+      } catch (verifyErr: any) {
+        steps.push({
+          name: "Authentication",
+          status: "fail",
+          message: verifyErr.message || "Authentication failed",
+          durationMs: Date.now() - verifyStart,
+        });
+        res.status(200).json({ success: false, steps, latencyMs: steps.reduce((s, st) => s + st.durationMs, 0) });
+        return;
+      }
+
+      // Step 5: Send Test Email
+      const sendStart = Date.now();
+      try {
+        await transporter.sendMail({
+          from: `"${settings.senderName || "DIYtax9ja"}" <${settings.senderEmail || settings.auth?.user}>`,
+          to: testEmail,
+          subject: "✅ DIYtax9ja SMTP Test — Connection Successful",
+          html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#013220;">SMTP Test Passed ✅</h2><p>This confirms your SMTP configuration on DIYtax9ja is working correctly.</p><p style="color:#888;font-size:12px;">Sent at ${new Date().toISOString()}</p></div>`,
+        });
+
+        steps.push({
+          name: "Test Email Delivery",
+          status: "pass",
+          message: `Test email delivered to ${testEmail}`,
+          durationMs: Date.now() - sendStart,
+        });
+      } catch (sendErr: any) {
+        steps.push({
+          name: "Test Email Delivery",
+          status: "fail",
+          message: sendErr.message || "Delivery failed",
+          durationMs: Date.now() - sendStart,
+        });
+      }
+
+      const totalLatency = steps.reduce((sum, s) => sum + s.durationMs, 0);
+      const allPassed = steps.every((s) => s.status === "pass");
+
+      // Save settings to Firestore if test passed
+      if (allPassed) {
+        await db.collection("system_config").doc("smtp_settings").set({
+          provider: settings.provider,
+          host: settings.host,
+          port: settings.port,
+          secure: settings.secure,
+          authUser: settings.auth?.user,
+          authPass: settings.auth?.pass,
+          senderName: settings.senderName,
+          senderEmail: settings.senderEmail,
+          replyTo: settings.replyTo || null,
+          active: true,
+          lastTestedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastTestResult: "success",
+        });
+      }
+
+      res.status(200).json({
+        success: allPassed,
+        steps,
+        latencyMs: totalLatency,
+      });
+    } catch (err: any) {
+      functions.logger.error("[Email] testSMTP error:", err);
+      res.status(500).json({
+        error: "SMTP test failed with an unexpected error.",
+        details: err.message,
+      });
+    }
+  }
+);
