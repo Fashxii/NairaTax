@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, FileText, ShieldCheck, Calendar, CheckCircle, X } from 'lucide-react';
+import type { TaxFiling } from '../types';
+import { useUserPersistedState } from '../utils/userScope';
 
 interface Notification {
   id: string;
@@ -11,40 +13,76 @@ interface Notification {
   read: boolean;
 }
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: 'n1',
-    type: 'filing',
-    title: 'VAT Return Due',
-    message: 'Your monthly VAT return for July 2026 is due by August 21st.',
-    time: '2 hours ago',
-    read: false,
-  },
-  {
-    id: 'n2',
-    type: 'compliance',
-    title: 'TCC Renewal Reminder',
-    message: 'Your Tax Clearance Certificate expires in 45 days. File outstanding returns to auto-renew.',
-    time: '1 day ago',
-    read: false,
-  },
-  {
-    id: 'n3',
-    type: 'system',
-    title: 'Receipt Synced Successfully',
-    message: 'Manda Office Rent Ltd receipt (₦150,000) has been added to your deductions ledger.',
-    time: '3 days ago',
-    read: true,
-  },
-  {
-    id: 'n4',
-    type: 'deadline',
-    title: 'Quarterly Estimated Tax',
-    message: 'Q3 2026 estimated income tax payment deadline is September 30, 2026.',
-    time: '5 days ago',
-    read: true,
-  },
-];
+interface NotificationSource {
+  merchant: string;
+  amount: number;
+  date: string;
+  id: string;
+}
+
+interface NotificationPanelProps {
+  filings?: TaxFiling[];
+  transactions?: NotificationSource[];
+  isNINLinked?: boolean;
+  accountMode?: 'personal' | 'business';
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+const fmtDate = (d: Date) => d.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
+const daysUntil = (d: Date) => Math.ceil((d.getTime() - Date.now()) / DAY);
+const dueLabel = (d: Date) => {
+  const n = daysUntil(d);
+  return n <= 0 ? 'Due today' : n === 1 ? 'Due tomorrow' : `Due in ${n} days`;
+};
+const relativeTime = (iso: string) => {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const days = Math.floor((Date.now() - t) / DAY);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+};
+
+/** Next statutory deadlines (Nigeria): PIT self-assessment 31 Mar, VAT 21st monthly, CIT 30 Jun (Dec year-end). */
+function upcomingDeadlines(accountMode: 'personal' | 'business'): Omit<Notification, 'read'>[] {
+  const now = new Date();
+  const y = now.getFullYear();
+  const out: Omit<Notification, 'read'>[] = [];
+  const next = (month: number, day: number) => {
+    const d = new Date(y, month, day, 23, 59);
+    return d.getTime() >= now.getTime() ? d : new Date(y + 1, month, day, 23, 59);
+  };
+  if (accountMode === 'personal') {
+    const pit = next(2, 31);
+    out.push({
+      id: `deadline-pit-${pit.getFullYear()}`,
+      type: 'deadline',
+      title: 'Annual PIT Self-Assessment',
+      message: `Your FY ${pit.getFullYear() - 1} personal income tax return is due by ${fmtDate(pit)}.`,
+      time: dueLabel(pit),
+    });
+  } else {
+    let vat = new Date(y, now.getMonth(), 21, 23, 59);
+    if (vat.getTime() < now.getTime()) vat = new Date(y, now.getMonth() + 1, 21, 23, 59);
+    const prevMonth = new Date(vat.getFullYear(), vat.getMonth() - 1, 1);
+    out.push({
+      id: `deadline-vat-${vat.getFullYear()}-${vat.getMonth()}`,
+      type: 'filing',
+      title: 'Monthly VAT Return',
+      message: `VAT for ${prevMonth.toLocaleDateString('en-NG', { month: 'long', year: 'numeric' })} is due by ${fmtDate(vat)}.`,
+      time: dueLabel(vat),
+    });
+    const cit = next(5, 30);
+    out.push({
+      id: `deadline-cit-${cit.getFullYear()}`,
+      type: 'deadline',
+      title: 'Company Income Tax Return',
+      message: `CIT for financial year ending Dec ${cit.getFullYear() - 1} is due by ${fmtDate(cit)}.`,
+      time: dueLabel(cit),
+    });
+  }
+  return out;
+}
 
 const ICON_MAP = {
   filing: FileText,
@@ -60,10 +98,55 @@ const ICON_COLORS = {
   system: 'text-primary-container bg-primary-container/10',
 };
 
-export default function NotificationPanel() {
+export default function NotificationPanel({
+  filings = [],
+  transactions = [],
+  isNINLinked = true,
+  accountMode = 'personal',
+}: NotificationPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [state, setState] = useUserPersistedState<{ read: string[]; dismissed: string[] }>(
+    'notification_state',
+    { read: [], dismissed: [] }
+  );
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const notifications = useMemo<Notification[]>(() => {
+    const items: Omit<Notification, 'read'>[] = [];
+    if (!isNINLinked) {
+      items.push({
+        id: 'compliance-nin',
+        type: 'compliance',
+        title: 'Link your NIN',
+        message: 'Link your National Identification Number to prepare and record tax returns.',
+        time: 'Action required',
+      });
+    }
+    filings
+      .filter(f => f.status !== 'Paid')
+      .slice(0, 3)
+      .forEach(f => items.push({
+        id: `filing-${f.id}-${f.status}`,
+        type: 'filing',
+        title: `${f.type} — ${f.status}`,
+        message: `${f.period} return (ref ${f.receiptNumber}) for ₦${f.amount.toLocaleString()} is ${f.status === 'Pending' ? 'awaiting payment and submission' : 'being processed'}.`,
+        time: relativeTime(f.dateFiled),
+      }));
+    items.push(...upcomingDeadlines(accountMode));
+    const latest = transactions[0];
+    if (latest) {
+      items.push({
+        id: `tx-${latest.id}`,
+        type: 'system',
+        title: 'Receipt recorded',
+        message: `${latest.merchant} (₦${latest.amount.toLocaleString()}) is in your ledger.`,
+        time: latest.date,
+      });
+    }
+    return items
+      .filter(n => !state.dismissed.includes(n.id))
+      .map(n => ({ ...n, read: state.read.includes(n.id) }));
+  }, [filings, transactions, isNINLinked, accountMode, state]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -79,11 +162,11 @@ export default function NotificationPanel() {
   }, [isOpen]);
 
   const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setState(prev => ({ ...prev, read: Array.from(new Set([...prev.read, ...notifications.map(n => n.id)])) }));
   };
 
   const dismissNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setState(prev => ({ ...prev, dismissed: [...prev.dismissed, id] }));
   };
 
   return (
@@ -176,9 +259,9 @@ export default function NotificationPanel() {
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="px-4 py-2.5 border-t border-outline-variant/40 bg-surface-container-low text-center">
-                <button className="text-[10px] font-bold text-primary-container hover:underline cursor-pointer">
-                  View All Activity
-                </button>
+                <span className="text-[10px] font-medium text-on-surface-variant">
+                  Based on your filings, receipts and statutory deadlines
+                </span>
               </div>
             )}
           </motion.div>

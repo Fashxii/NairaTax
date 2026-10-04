@@ -55,6 +55,10 @@ admin.initializeApp();
 const db = admin.firestore();
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_ATTEMPTS = 5;
+// Staff roles are resolved server-side only. Bootstrap super admins are
+// always granted super_admin; other staff roles come from users/{email}.role.
+const BOOTSTRAP_SUPER_ADMINS = ["samsontila@gmail.com"];
+const STAFF_ROLES = ["super_admin", "content_manager", "reviewer"];
 // ─── Helpers ────────────────────────────────────────────────────────
 function generateOTPCode() {
     const array = new Uint32Array(1);
@@ -138,7 +142,7 @@ exports.sendOTP = functions.https.onRequest({
     secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
     region: "us-central1",
 }, async (req, res) => {
-    var _a;
+    var _a, _b;
     // Only accept POST
     if (req.method !== "POST") {
         res.status(405).json({ error: "Method Not Allowed" });
@@ -190,7 +194,11 @@ exports.sendOTP = functions.https.onRequest({
                 lastLogin: null,
             });
         }
-        if (userDoc.exists && ((_a = userDoc.data()) === null || _a === void 0 ? void 0 : _a.isActive) === false) {
+        else if (userDoc.exists && !((_a = userDoc.data()) === null || _a === void 0 ? void 0 : _a.fullName) && fullName) {
+            // Backfill a missing name; never overwrite an existing one.
+            await userRef.update({ fullName: fullName.trim() });
+        }
+        if (userDoc.exists && ((_b = userDoc.data()) === null || _b === void 0 ? void 0 : _b.isActive) === false) {
             res.status(403).json({
                 error: "This account has been suspended. Please contact your administrator.",
             });
@@ -295,21 +303,30 @@ exports.verifyOTP = functions.https.onRequest({
         }
         // Success — delete consumed token
         await tokenRef.delete();
-        // Update last login time
+        // Resolve role server-side and update last login time
         const userRef = db.collection("users").doc(cleanEmail);
         const userDoc = await userRef.get();
-        if (userDoc.exists) {
-            await userRef.update({
-                lastLogin: admin.firestore.FieldValue.serverTimestamp(),
-            });
-        }
         const userData = userDoc.data() || {};
+        const isBootstrapAdmin = BOOTSTRAP_SUPER_ADMINS.includes(cleanEmail);
+        const storedRole = typeof userData.role === "string" ? userData.role : "taxpayer";
+        const role = isBootstrapAdmin
+            ? "super_admin"
+            : STAFF_ROLES.includes(storedRole) ? storedRole : "taxpayer";
+        if (userData.isActive === false) {
+            res.status(403).json({ error: "This account has been suspended. Please contact your administrator." });
+            return;
+        }
+        await userRef.set(Object.assign({ email: cleanEmail, role, lastLogin: admin.firestore.FieldValue.serverTimestamp() }, (userDoc.exists ? {} : {
+            isActive: true,
+            accountType: "individual",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        })), { merge: true });
         res.status(200).json({
             success: true,
             user: {
                 email: cleanEmail,
-                fullName: userData.fullName || "Taxpayer",
-                role: userData.role || "taxpayer",
+                fullName: userData.fullName || "",
+                role,
                 accountType: userData.accountType || "individual",
             },
         });

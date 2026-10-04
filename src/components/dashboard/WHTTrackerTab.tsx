@@ -9,7 +9,7 @@ import {
   generateCreditNoteRef, computeWHTSummary
 } from '../../utils/whtEngine';
 import { formatNaira } from '../../utils/taxEngine';
-import { usePersistedState } from '../../hooks/usePersistedState';
+import { useUserPersistedState } from '../../utils/userScope';
 
 const SAMPLE_TRANSACTIONS: WHTTransaction[] = [
   {
@@ -67,7 +67,7 @@ const SAMPLE_TRANSACTIONS: WHTTransaction[] = [
 ];
 
 const WHTTrackerTab = memo(function WHTTrackerTab() {
-  const [transactions, setTransactions] = usePersistedState<WHTTransaction[]>('wht_transactions', SAMPLE_TRANSACTIONS);
+  const [transactions, setTransactions] = useUserPersistedState<WHTTransaction[]>('wht_transactions', [], SAMPLE_TRANSACTIONS);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedTx, setSelectedTx] = useState<WHTTransaction | null>(null);
 

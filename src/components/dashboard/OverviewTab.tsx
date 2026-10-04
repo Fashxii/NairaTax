@@ -44,6 +44,9 @@ interface OverviewTabProps {
   businessExpenseUsed: number;
   businessExpenseCap: number;
   businessExpensePercent: number;
+  estimatedSavings: number;
+  filingStreak: number;
+  isDemo?: boolean;
   onStartFiling: () => void;
   onViewLedger: () => void;
 }
@@ -60,6 +63,9 @@ const OverviewTab = memo(function OverviewTab({
   businessExpenseUsed,
   businessExpenseCap,
   businessExpensePercent,
+  estimatedSavings,
+  filingStreak,
+  isDemo = false,
   onStartFiling,
   onViewLedger
 }: OverviewTabProps) {
@@ -78,25 +84,28 @@ const OverviewTab = memo(function OverviewTab({
         </h2>
         <div className="flex items-center gap-1.5 mt-1">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse"></span>
-          <span className="text-[10px] text-on-surface-variant font-medium">Synced just now</span>
+          <span className="text-[10px] text-on-surface-variant font-medium">
+            {isDemo ? 'Demo account — sample data, changes stay on this device' : session.contactMethod}
+          </span>
         </div>
         
         <div className="inline-flex items-center mt-3 px-3.5 py-1 rounded-full bg-[#013220]/10 border border-[#013220]/25">
           <div className="w-1.5 h-1.5 rounded-full bg-[#013220] mr-2"></div>
           <span className="text-[10px] font-bold text-primary-container uppercase tracking-widest">
-            {session.isNINLinked ? 'Status: Fully Compliant (FY2026)' : 'Status: Identity Unlinked'}
+            {session.isNINLinked ? 'Status: NIN Linked' : 'Status: Identity Unlinked'}
           </span>
         </div>
       </div>
 
       {/* Financial Summary & Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gamified Tax Savings (Phase 4) */}
+        {/* Tax achievements derived from the user's own records */}
         <div className="col-span-1 lg:col-span-2">
           <TaxSavingsInsights 
-            savingsAmount={125000} 
-            filingStreak={3} 
-            percentileRank={15} 
+            savingsAmount={estimatedSavings} 
+            filingStreak={filingStreak} 
+            deductionsCount={transactions.filter(t => t.isDeductible).length}
+            hasIncome={estimatedSavings > 0 || !transactions.some(t => t.isDeductible)}
           />
         </div>
 
@@ -219,6 +228,11 @@ const OverviewTab = memo(function OverviewTab({
           </div>
 
           <div className="space-y-2">
+            {transactions.length === 0 && (
+              <div className="p-6 border border-dashed border-outline-variant rounded-xl text-center text-xs text-on-surface-variant">
+                No transactions yet. Tap the camera button to record your first receipt.
+              </div>
+            )}
             {transactions.map((tx) => (
               <div 
                 key={tx.id}
@@ -263,7 +277,7 @@ const OverviewTab = memo(function OverviewTab({
               <span className="text-[9px] font-bold text-accent-green uppercase tracking-widest block">Statutory Filing Portal</span>
               <h3 className="font-extrabold text-sm text-white uppercase mt-1">Ready to File?</h3>
               <p className="text-[11px] text-neutral-300 leading-relaxed mt-2">
-                Lock in your deductible allowable expenses and submit your annual self-assessment clearance return directly to the FIRS.
+                Lock in your deductible allowable expenses and prepare your annual self-assessment return summary for NRS / State IRS submission.
               </p>
             </div>
 

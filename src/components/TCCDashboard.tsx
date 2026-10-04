@@ -1,13 +1,14 @@
-import { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ShieldCheck, CheckCircle2, AlertTriangle, Clock, XCircle,
-  ArrowRight, Download
+  ArrowRight, ExternalLink
 } from 'lucide-react';
 import { TaxFiling } from '../types';
 
 interface TCCDashboardProps {
   filings: TaxFiling[];
+  accountMode?: 'personal' | 'business';
+  onStartFiling?: () => void;
 }
 
 interface TCCCheckItem {
@@ -21,28 +22,42 @@ interface TCCCheckItem {
 
 const formatNaira = (amount: number) => '₦' + amount.toLocaleString('en-NG');
 
-export default function TCCDashboard({ filings }: TCCDashboardProps) {
-  const [tccRequested, setTccRequested] = useState(false);
-  const [tccStep, setTccStep] = useState<'idle' | 'processing' | 'issued'>('idle');
-  const [tccRef, setTccRef] = useState('');
+/** Year a filing relates to: from its period (e.g. "FY 2025", "March 2026"), else its filing date. */
+const filingYear = (f: TaxFiling) =>
+  (f.period.match(/\b(20\d{2})\b/) || f.dateFiled.match(/^(20\d{2})/) || [])[1] || '';
 
-  // Build the 3-year compliance check items from filings + simulated data
-  const years = ['2024', '2025', '2026'];
+const TAXPROMAX_URL = 'https://taxpromax.firs.gov.ng';
 
-  const checkItems: TCCCheckItem[] = [
-    // 2024
-    { id: 'pit-2024', label: 'Personal Income Tax Filed', year: '2024', category: 'PIT', status: 'passed', detail: 'Filed on Mar 28, 2025 — Receipt NRTX-2024-671230' },
-    { id: 'vat-2024', label: 'VAT Returns (All Months)', year: '2024', category: 'VAT', status: 'passed', detail: '12/12 monthly returns filed on time' },
-    { id: 'wht-2024', label: 'Withholding Tax Remitted', year: '2024', category: 'WHT', status: 'passed', detail: 'All WHT deductions remitted quarterly' },
-    // 2025
-    { id: 'pit-2025', label: 'Personal Income Tax Filed', year: '2025', category: 'PIT', status: 'passed', detail: 'Filed on Mar 15, 2026 — Receipt NRTX-2025-842910' },
-    { id: 'vat-2025', label: 'VAT Returns (All Months)', year: '2025', category: 'VAT', status: 'passed', detail: '12/12 monthly returns filed on time' },
-    { id: 'wht-2025', label: 'Withholding Tax Remitted', year: '2025', category: 'WHT', status: 'passed', detail: 'All WHT deductions remitted quarterly' },
-    // 2026 (current — some may still be pending)
-    { id: 'pit-2026', label: 'Personal Income Tax Filed', year: '2026', category: 'PIT', status: filings.some(f => f.period.includes('2026') && f.type.includes('Personal') && f.status === 'Paid') ? 'passed' : 'pending', detail: filings.some(f => f.period.includes('2026') && f.type.includes('Personal') && f.status === 'Paid') ? 'Filed — current year return accepted' : 'Not yet filed for FY 2026' },
-    { id: 'vat-2026', label: 'VAT Returns (Year-to-Date)', year: '2026', category: 'VAT', status: 'passed', detail: '6/6 monthly returns filed (Jan–Jun 2026)' },
-    { id: 'wht-2026', label: 'Withholding Tax Remitted', year: '2026', category: 'WHT', status: 'passed', detail: 'Q1 & Q2 2026 remitted on time' },
-  ];
+export default function TCCDashboard({ filings, accountMode = 'personal', onStartFiling }: TCCDashboardProps) {
+  // A TCC covers the three years preceding the application year
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 3, currentYear - 2, currentYear - 1].map(String);
+
+  const incomeCategory: 'PIT' | 'CIT' = accountMode === 'business' ? 'CIT' : 'PIT';
+  const incomeLabel = accountMode === 'business' ? 'Company Income Tax Filed' : 'Personal Income Tax Filed';
+  const isIncomeTax = (f: TaxFiling) =>
+    accountMode === 'business' ? /company income tax|\bCIT\b/i.test(f.type) : /personal income tax|\bPIT\b|estimated income tax/i.test(f.type);
+  const isVat = (f: TaxFiling) => /VAT|value added/i.test(f.type);
+
+  const buildCheck = (
+    year: string, category: TCCCheckItem['category'], label: string, match: (f: TaxFiling) => boolean
+  ): TCCCheckItem => {
+    const yearFilings = filings.filter(f => filingYear(f) === year && match(f));
+    const paid = yearFilings.find(f => f.status === 'Paid');
+    const open = yearFilings.find(f => f.status !== 'Paid');
+    if (paid) {
+      return { id: `${category}-${year}`, label, year, category, status: 'passed', detail: `Paid ${paid.dateFiled} — Ref ${paid.receiptNumber}` };
+    }
+    if (open) {
+      return { id: `${category}-${year}`, label, year, category, status: 'pending', detail: `${open.status} — Ref ${open.receiptNumber}. Complete payment to clear this item.` };
+    }
+    return { id: `${category}-${year}`, label, year, category, status: 'failed', detail: `No return recorded for ${year}` };
+  };
+
+  const checkItems: TCCCheckItem[] = years.flatMap(year => [
+    buildCheck(year, incomeCategory, incomeLabel, isIncomeTax),
+    ...(accountMode === 'business' ? [buildCheck(year, 'VAT', 'VAT Returns', isVat)] : []),
+  ]);
 
   const passedCount = checkItems.filter(c => c.status === 'passed').length;
   const totalCount = checkItems.length;
@@ -50,16 +65,9 @@ export default function TCCDashboard({ filings }: TCCDashboardProps) {
   const isFullyCompliant = complianceScore === 100;
 
   const outstandingItems = checkItems.filter(c => c.status !== 'passed');
-
-  const handleRequestTCC = () => {
-    setTccStep('processing');
-    setTimeout(() => {
-      const ref = 'TCC-FIRS-' + new Date().getFullYear() + '-' + Math.floor(100000 + Math.random() * 900000);
-      setTccRef(ref);
-      setTccStep('issued');
-      setTccRequested(true);
-    }, 3000);
-  };
+  const totalPaidInWindow = filings
+    .filter(f => years.includes(filingYear(f)) && f.status === 'Paid')
+    .reduce((s, f) => s + f.amount, 0);
 
   // SVG ring calculations
   const radius = 70;
@@ -105,7 +113,7 @@ export default function TCCDashboard({ filings }: TCCDashboardProps) {
             </div>
           </div>
           <p className="text-xs font-semibold text-on-surface-variant mt-3 text-center">
-            {isFullyCompliant ? '🎉 You are fully compliant!' : `${totalCount - passedCount} item(s) need attention`}
+            {isFullyCompliant ? 'Records complete for all 3 years' : `${totalCount - passedCount} item(s) need attention`}
           </p>
         </div>
 
@@ -113,26 +121,26 @@ export default function TCCDashboard({ filings }: TCCDashboardProps) {
         <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-xs">
             <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Years Covered</p>
-            <p className="text-2xl font-black text-primary-container mt-1">2024 – 2026</p>
-            <p className="text-[10px] text-on-surface-variant mt-1">3 fiscal years reviewed</p>
+            <p className="text-2xl font-black text-primary-container mt-1">{years[0]} – {years[2]}</p>
+            <p className="text-[10px] text-on-surface-variant mt-1">3 preceding fiscal years</p>
           </div>
           <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-xs">
             <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Checks Passed</p>
             <p className="text-2xl font-black text-emerald-700 mt-1">{passedCount} / {totalCount}</p>
-            <p className="text-[10px] text-on-surface-variant mt-1">PIT, VAT, WHT across 3 years</p>
+            <p className="text-[10px] text-on-surface-variant mt-1">{accountMode === 'business' ? 'CIT & VAT' : 'PIT'} across 3 years</p>
           </div>
           <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-xs">
             <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Total Tax Paid (3yr)</p>
-            <p className="text-2xl font-black text-primary-container mt-1">{formatNaira(filings.reduce((s, f) => s + f.amount, 0))}</p>
-            <p className="text-[10px] text-on-surface-variant mt-1">From filing history</p>
+            <p className="text-2xl font-black text-primary-container mt-1">{formatNaira(totalPaidInWindow)}</p>
+            <p className="text-[10px] text-on-surface-variant mt-1">From your filing history</p>
           </div>
           <div className={`border rounded-xl p-5 shadow-xs ${isFullyCompliant ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-            <p className={`text-[10px] font-bold uppercase tracking-wider ${isFullyCompliant ? 'text-emerald-700' : 'text-amber-700'}`}>TCC Status</p>
+            <p className={`text-[10px] font-bold uppercase tracking-wider ${isFullyCompliant ? 'text-emerald-700' : 'text-amber-700'}`}>TCC Readiness</p>
             <p className={`text-lg font-black mt-1 ${isFullyCompliant ? 'text-emerald-700' : 'text-amber-700'}`}>
-              {tccRequested ? 'Issued ✅' : isFullyCompliant ? 'Ready to Request' : 'Not Yet Eligible'}
+              {isFullyCompliant ? 'Ready to Apply' : 'Not Yet Eligible'}
             </p>
             <p className={`text-[10px] mt-1 ${isFullyCompliant ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {tccRequested ? `Ref: ${tccRef}` : isFullyCompliant ? 'All requirements met' : 'Resolve outstanding items'}
+              {isFullyCompliant ? 'Your records cover all 3 years' : 'Resolve outstanding items'}
             </p>
           </div>
         </div>
@@ -199,7 +207,10 @@ export default function TCCDashboard({ filings }: TCCDashboardProps) {
                   <p className="text-xs font-semibold text-on-surface">{item.label} — {item.year}</p>
                   <p className="text-[10px] text-amber-700">{item.detail}</p>
                 </div>
-                <button className="text-[10px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 cursor-pointer flex-shrink-0">
+                <button
+                  onClick={onStartFiling}
+                  className="text-[10px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 cursor-pointer flex-shrink-0"
+                >
                   Resolve <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
@@ -208,50 +219,25 @@ export default function TCCDashboard({ filings }: TCCDashboardProps) {
         </div>
       )}
 
-      {/* Request TCC Button */}
-      {tccStep === 'idle' && (
-        <button
-          onClick={isFullyCompliant ? handleRequestTCC : undefined}
-          disabled={!isFullyCompliant}
-          className={`w-full h-14 rounded-xl text-sm font-bold flex items-center justify-center space-x-2 transition-all shadow-sm ${
-            isFullyCompliant
-              ? 'bg-[#013220] text-white hover:opacity-95 active:scale-[0.99] cursor-pointer'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-          }`}
-        >
-          <ShieldCheck className="w-5 h-5" />
-          <span>{isFullyCompliant ? 'Request Tax Clearance Certificate from FIRS' : 'Complete All Requirements to Request TCC'}</span>
-        </button>
-      )}
-
-      {tccStep === 'processing' && (
-        <div className="w-full h-14 rounded-xl bg-[#013220]/10 border border-[#013220]/20 flex items-center justify-center space-x-3">
-          <div className="w-5 h-5 border-2 border-[#013220]/20 border-t-[#013220] rounded-full animate-spin"></div>
-          <span className="text-sm font-bold text-[#013220]">Submitting TCC Request to FIRS...</span>
-        </div>
-      )}
-
-      {tccStep === 'issued' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-6 text-center space-y-4"
-        >
-          <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-8 h-8 text-emerald-600" />
-          </div>
-          <h3 className="text-xl font-black text-emerald-800">Tax Clearance Certificate Issued!</h3>
-          <div className="bg-white border border-emerald-200 rounded-xl p-4 inline-block">
-            <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Certificate Reference</p>
-            <p className="text-xl font-mono font-black text-emerald-800 mt-1">{tccRef}</p>
-          </div>
-          <p className="text-xs text-emerald-700">Valid for visas, government contracts, bank credit approvals, and land transactions.</p>
-          <button className="h-11 px-6 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:opacity-95 active:scale-[0.99] transition-all flex items-center space-x-2 mx-auto cursor-pointer">
-            <Download className="w-4 h-4" />
-            <span>Download TCC Certificate (PDF)</span>
-          </button>
-        </motion.div>
-      )}
+      {/* Apply for TCC on the official portal (DIYtax9ja cannot issue certificates) */}
+      <a
+        href={isFullyCompliant ? TAXPROMAX_URL : undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-disabled={!isFullyCompliant}
+        className={`w-full h-14 rounded-xl text-sm font-bold flex items-center justify-center space-x-2 transition-all shadow-sm ${
+          isFullyCompliant
+            ? 'bg-[#013220] text-white hover:opacity-95 active:scale-[0.99] cursor-pointer'
+            : 'bg-gray-200 text-gray-400 cursor-not-allowed pointer-events-none'
+        }`}
+      >
+        <ShieldCheck className="w-5 h-5" />
+        <span>{isFullyCompliant ? 'Apply for TCC on TaxPro Max (NRS)' : 'Complete All Requirements to Apply for TCC'}</span>
+        {isFullyCompliant && <ExternalLink className="w-4 h-4" />}
+      </a>
+      <p className="text-[10px] text-on-surface-variant text-center">
+        Readiness is based on returns recorded in DIYtax9ja. Certificates are issued only by NRS / State IRS.
+      </p>
     </div>
   );
 }

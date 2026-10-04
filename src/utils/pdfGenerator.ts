@@ -89,12 +89,12 @@ export function generateTaxReceipt(filing: TaxFiling, session: UserSession): voi
   doc.setTextColor(DARK_TEXT);
 
   const taxpayerName = session.fullName || 'Registered Taxpayer';
-  const taxId = session.taxId || 'STAX-98234-NG';
-  const nin = session.nin ? `***${session.nin.slice(-4)}` : 'Linked';
+  const taxId = session.taxId || 'Not provided';
+  const nin = session.nin ? `***${session.nin.slice(-4)}` : '';
 
   doc.text(`Taxpayer Name: ${taxpayerName}`, 20, 50);
   doc.text(`State Tax ID: ${taxId}`, 20, 56);
-  doc.text(`NIN Status: Verified (${nin})`, 20, 62);
+  doc.text(nin ? `NIN: Linked (${nin})` : 'NIN: Not linked', 20, 62);
 
   doc.text(`Filing Period: ${filing.period}`, 110, 50);
   doc.text(`Filing Type: ${filing.type}`, 110, 56);

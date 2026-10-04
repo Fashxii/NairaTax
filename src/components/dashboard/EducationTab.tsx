@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { HelpCircle, Send, Sparkles } from 'lucide-react';
 import { useContent } from '../../context/ContentContext';
 import { getAdvisorResponse, QUICK_ASK_QUESTIONS } from '../../utils/advisorEngine';
-import { usePersistedState } from '../../hooks/usePersistedState';
+import { useUserPersistedState } from '../../utils/userScope';
 
 interface ChatMessage {
   sender: 'user' | 'assistant';
@@ -13,7 +13,7 @@ interface ChatMessage {
 
 export default function EducationTab() {
   const { content } = useContent();
-  const [chatMessages, setChatMessages] = usePersistedState<ChatMessage[]>('chat_history', [
+  const [chatMessages, setChatMessages] = useUserPersistedState<ChatMessage[]>('chat_history', [
     { sender: 'assistant', text: content.dashboard.advisorIntroText }
   ]);
   const [chatInput, setChatInput] = useState('');

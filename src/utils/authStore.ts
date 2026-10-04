@@ -30,61 +30,21 @@ export interface RegisteredUser {
 
 const STORE_KEY = 'registered_users';
 
-// ─── Seed Super Admin ───────────────────────────────────────────────
-// Ensures super_admin accounts exist on first load.
+// ─── Staff Accounts ───────────────────────────────────────────────
+// Staff accounts: no credentials are seeded client-side. Staff roles
+// (incl. super_admin) are resolved server-side by the verifyOTP Cloud
+// Function after email OTP login.
 
-export const SAMSON_SUPER_ADMIN: RegisteredUser = {
-  id: 'admin_super_samson',
-  email: 'samsontila@gmail.com',
-  fullName: 'Samson Tila',
-  accountType: 'individual',
-  role: 'super_admin',
-  // SHA-256 of "Indiaolover22_nairatax_secure_salt_v2"
-  passwordHash: 'd8461608057bbc8338cc9ca2551acb2d828d680679662e5cd6ce8d2012f91cc4',
-  isActive: true,
-  createdAt: '2026-09-14T00:00:00.000Z',
-  lastLogin: null,
-};
-
-const SEED_ADMIN: RegisteredUser = {
-  id: 'admin_seed_001',
-  email: 'admin@diytax9ja.ng',
-  fullName: 'System Administrator',
-  accountType: 'individual',
-  role: 'super_admin',
-  passwordHash: null, // Will be set on first login or via admin panel
-  isActive: true,
-  createdAt: new Date().toISOString(),
-  lastLogin: null,
-};
-
-export function ensureSeedAdmin(): void {
+/** Removes legacy seeded admin records that carried hardcoded/blank credentials. */
+export function purgeLegacySeedAdmins(): void {
   const users = getStored<RegisteredUser[]>(STORE_KEY, []);
-  
-  // Guarantee Samson Tila super_admin account exists and has the correct password hash & active status
-  const samsonIndex = users.findIndex((u) => u.email.toLowerCase() === 'samsontila@gmail.com');
-  if (samsonIndex === -1) {
-    users.push(SAMSON_SUPER_ADMIN);
-  } else {
-    users[samsonIndex] = {
-      ...users[samsonIndex],
-      fullName: users[samsonIndex].fullName || SAMSON_SUPER_ADMIN.fullName,
-      role: 'super_admin',
-      isActive: true,
-      passwordHash: SAMSON_SUPER_ADMIN.passwordHash,
-    };
-  }
-
-  // Also guarantee default seed admin exists
-  if (!users.some((u) => u.email.toLowerCase() === 'admin@diytax9ja.ng')) {
-    users.push(SEED_ADMIN);
-  }
-
-  setStored(STORE_KEY, users);
+  const cleaned = users.filter(
+    (u) => !(u.id === 'admin_seed_001' || u.id === 'admin_super_samson')
+  );
+  if (cleaned.length !== users.length) setStored(STORE_KEY, cleaned);
 }
 
-// Run seed check on module load
-ensureSeedAdmin();
+purgeLegacySeedAdmins();
 
 // ─── CRUD Operations ────────────────────────────────────────────────
 
@@ -175,10 +135,10 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Verify staff admin password against backend authorization endpoint (/api/auth/admin/login)
+ * Verify a password against a stored hash. An empty/missing hash never matches.
  */
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  if (!storedHash) return true;
+  if (!storedHash) return false;
   const hash = await hashPassword(password);
   return hash === storedHash;
 }
