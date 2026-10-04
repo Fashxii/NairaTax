@@ -211,8 +211,13 @@ exports.sendOTP = functions.https.onRequest({
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         // Send email via Nodemailer
-        const gmailUser = process.env.GMAIL_USER;
-        const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+        const gmailUser = (process.env.GMAIL_USER || "").trim();
+        const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, "");
+        if (!gmailUser || !gmailAppPassword) {
+            functions.logger.error("[OTP] GMAIL_USER / GMAIL_APP_PASSWORD secrets are not set.");
+            res.status(503).json({ error: "Email service is not configured. Please contact support." });
+            return;
+        }
         const transporter = createTransporter(gmailUser, gmailAppPassword);
         await transporter.sendMail({
             from: `"DIYtax9ja" <${gmailUser}>`,
@@ -323,6 +328,7 @@ exports.sendEmailFn = functions.https.onRequest({
     cors: true,
     region: "us-central1",
 }, async (req, res) => {
+    var _a, _b;
     if (req.method !== "POST") {
         res.status(405).json({ error: "Method Not Allowed" });
         return;
@@ -354,8 +360,8 @@ exports.sendEmailFn = functions.https.onRequest({
         }
         else {
             // Fallback to default Gmail credentials if configured
-            const gmailUser = process.env.GMAIL_USER;
-            const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+            const gmailUser = (_a = process.env.GMAIL_USER) === null || _a === void 0 ? void 0 : _a.trim();
+            const gmailAppPassword = (_b = process.env.GMAIL_APP_PASSWORD) === null || _b === void 0 ? void 0 : _b.replace(/\s+/g, "");
             if (!gmailUser || !gmailAppPassword) {
                 res.status(503).json({
                     error: "SMTP is not configured. Please configure SMTP settings in the Super Admin panel.",

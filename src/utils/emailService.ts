@@ -183,7 +183,20 @@ export async function sendEmail(payload: EmailDispatchPayload): Promise<EmailDis
 
     return result;
   } catch (err: any) {
-    // ── Dev Sandbox Fallback ──────────────────────────────────────
+    // In production, report the real failure instead of faking delivery.
+    if (!import.meta.env.DEV) {
+      console.error('[Email] Dispatch failed:', err.message);
+      const failedResult: EmailDispatchResult = {
+        success: false,
+        error: err.message || 'Email dispatch failed.',
+        dispatchedAt: new Date().toISOString(),
+        mode: 'live',
+      };
+      logEmailDispatch(payload, subject, 'Failed', failedResult);
+      return failedResult;
+    }
+
+    // ── Dev Sandbox Fallback (npm run dev only) ───────────────────
     console.warn('[Email] Server unavailable — routing to Dev Sandbox:', err.message);
 
     const sandboxResult: EmailDispatchResult = {
@@ -250,7 +263,19 @@ export async function testSMTPConnection(
 
     return await res.json();
   } catch (err: any) {
-    // Simulate SMTP test steps for local dev
+    // In production, never simulate a passing test.
+    if (!import.meta.env.DEV) {
+      console.error('[Email] SMTP test failed:', err.message);
+      return {
+        success: false,
+        steps: [
+          { name: 'Server Request', status: 'fail', message: err.message || 'SMTP test service unavailable.', durationMs: 0 },
+        ],
+        latencyMs: 0,
+      };
+    }
+
+    // Simulate SMTP test steps for local dev (npm run dev only)
     console.warn('[Email] SMTP test running in simulation mode:', err.message);
 
     const steps: SMTPTestStep[] = [
