@@ -12,10 +12,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // User profiles — authenticated users can read their own profile
+    // User profiles — authenticated users can read their own profile; staff can view users
     match /users/{email} {
-      allow read: if request.auth != null && request.auth.token.email == email;
-      allow write: if false; // Only Cloud Functions can write
+      allow read: if request.auth != null && (request.auth.token.email == email || request.auth.uid == email || request.auth.token.role in ['super_admin', 'reviewer', 'content_manager']);
+      allow write: if false; // Only Cloud Functions can write user profile doc
+
+      // Subcollections (filings, transactions, invoices, employees, wht, notifications, user_settings)
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && (request.auth.token.email == email || request.auth.uid == email || request.auth.token.role in ['super_admin', 'reviewer', 'content_manager']);
+      }
     }
 
     // SMTP settings — server-only (Admin SDK bypasses rules)
