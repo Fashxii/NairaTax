@@ -80,7 +80,7 @@ const OverviewTab = memo(function OverviewTab({
       {/* Greeting Area */}
       <div>
         <h2 className="text-2xl font-black text-primary-container tracking-tight">
-          {content.dashboard.welcomeGreeting}, {currentTaxpayerName}
+          {content.dashboard.welcomeGreeting.replace(/[\s,!]+$/, '')}, {currentTaxpayerName}
         </h2>
         <div className="flex items-center gap-1.5 mt-1">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse"></span>
