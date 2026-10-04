@@ -17,6 +17,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useAppContext } from '../../AppShell';
+import { getDisplayName } from '../../utils/userScope';
 import { useNavigate } from 'react-router-dom';
 import SystemSettingsPanel from './SystemSettingsPanel';
 import UserManagementPanel from './UserManagementPanel';
@@ -71,7 +72,7 @@ export default function SuperAdminDashboard() {
 
             <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-white/10 text-xs">
               <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-              <span className="font-semibold text-white/90">{session.fullName || 'Adebayo Ogunlade'}</span>
+              <span className="font-semibold text-white/90">{getDisplayName(session)}</span>
             </div>
 
             <button

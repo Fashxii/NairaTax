@@ -9,9 +9,10 @@ interface FilingHistoryTabProps {
   session: UserSession;
   onSelectFiling: (filing: TaxFiling) => void;
   onStartFiling: () => void;
+  onMarkPaid?: (filingId: string) => void;
 }
 
-const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSelectFiling, onStartFiling }: FilingHistoryTabProps) {
+const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSelectFiling, onStartFiling, onMarkPaid }: FilingHistoryTabProps) {
   const { showToast } = useToast();
   return (
     <motion.section
@@ -59,6 +60,13 @@ const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSe
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/20 font-medium">
+              {filings.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-on-surface-variant">
+                    No returns recorded yet. Use <span className="font-bold">File New Tax Return</span> to prepare your first one.
+                  </td>
+                </tr>
+              )}
               {filings.map((f) => (
                 <tr key={f.id} className="hover:bg-surface-container-low/30 transition-colors">
                   <td className="py-4 font-bold text-primary-container">{f.type}</td>
@@ -76,13 +84,28 @@ const FilingHistoryTab = memo(function FilingHistoryTab({ filings, session, onSe
                     </span>
                   </td>
                   <td className="py-4 text-right">
-                    <button
-                      onClick={() => onSelectFiling(f)}
-                      className="px-3 py-1.5 bg-background border border-outline hover:bg-surface-container-lowest text-primary-container text-[11px] font-bold rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Certificate</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {f.status !== 'Paid' && onMarkPaid && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Mark ${f.receiptNumber} as paid? Only do this after paying on the NRS / State IRS portal.`)) {
+                              onMarkPaid(f.id);
+                              showToast('success', 'Marked as paid', `${f.type} (${f.period}) updated.`);
+                            }
+                          }}
+                          className="px-3 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          Mark paid
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onSelectFiling(f)}
+                        className="px-3 py-1.5 bg-background border border-outline hover:bg-surface-container-lowest text-primary-container text-[11px] font-bold rounded-lg flex items-center justify-center space-x-1 transition-all cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Summary</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

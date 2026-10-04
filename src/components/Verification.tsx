@@ -99,11 +99,14 @@ export default function Verification() {
         return;
       }
 
-      // Retrieve real user record or returned user payload
-      const user = result.user || findUserByEmail(contactMethod);
-      const fullName = user?.fullName || 'Taxpayer';
+      // Use the registered identity: server record first, then the local registry.
+      // An empty name falls back to the email in the UI (never a fake name).
+      const localUser = findUserByEmail(contactMethod);
+      const fullName = (result.user?.fullName || localUser?.fullName || '').trim();
+      const registeredType = result.user?.accountType || localUser?.accountType;
+      const accountType = registeredType === 'business' || registeredType === 'individual' ? registeredType : undefined;
 
-      onVerify(fullName);
+      onVerify(fullName, accountType);
     } catch (err: any) {
       setIsVerifying(false);
       setError('Verification service error. Please try again.');

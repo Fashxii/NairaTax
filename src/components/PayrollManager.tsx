@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { usePersistedState } from '../hooks/usePersistedState';
+import { useUserPersistedState } from '../utils/userScope';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, UserPlus, Briefcase, Building,
@@ -18,7 +18,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
 // PAYE calculation now uses shared taxEngine — see src/utils/taxEngine.ts
 
 export default function PayrollManager() {
-  const [employees, setEmployees] = usePersistedState<Employee[]>('employees', INITIAL_EMPLOYEES);
+  const [employees, setEmployees] = useUserPersistedState<Employee[]>('employees', [], INITIAL_EMPLOYEES);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 

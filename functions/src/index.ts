@@ -24,6 +24,11 @@ const db = admin.firestore();
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_ATTEMPTS = 5;
 
+// Staff roles are resolved server-side only. Bootstrap super admins are
+// always granted super_admin; other staff roles come from users/{email}.role.
+const BOOTSTRAP_SUPER_ADMINS = ["samsontila@gmail.com"];
+const STAFF_ROLES = ["super_admin", "content_manager", "reviewer"];
+
 // ─── Helpers ────────────────────────────────────────────────────────
 
 function generateOTPCode(): string {
@@ -173,6 +178,9 @@ export const sendOTP = functions.https.onRequest(
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           lastLogin: null,
         });
+      } else if (userDoc.exists && !userDoc.data()?.fullName && fullName) {
+        // Backfill a missing name; never overwrite an existing one.
+        await userRef.update({ fullName: fullName.trim() });
       }
 
       if (userDoc.exists && userDoc.data()?.isActive === false) {
@@ -307,24 +315,42 @@ export const verifyOTP = functions.https.onRequest(
       // Success — delete consumed token
       await tokenRef.delete();
 
-      // Update last login time
+      // Resolve role server-side and update last login time
       const userRef = db.collection("users").doc(cleanEmail);
       const userDoc = await userRef.get();
+      const userData = userDoc.data() || {};
 
-      if (userDoc.exists) {
-        await userRef.update({
-          lastLogin: admin.firestore.FieldValue.serverTimestamp(),
-        });
+      const isBootstrapAdmin = BOOTSTRAP_SUPER_ADMINS.includes(cleanEmail);
+      const storedRole = typeof userData.role === "string" ? userData.role : "taxpayer";
+      const role = isBootstrapAdmin
+        ? "super_admin"
+        : STAFF_ROLES.includes(storedRole) ? storedRole : "taxpayer";
+
+      if (userData.isActive === false) {
+        res.status(403).json({ error: "This account has been suspended. Please contact your administrator." });
+        return;
       }
 
-      const userData = userDoc.data() || {};
+      await userRef.set(
+        {
+          email: cleanEmail,
+          role,
+          lastLogin: admin.firestore.FieldValue.serverTimestamp(),
+          ...(userDoc.exists ? {} : {
+            isActive: true,
+            accountType: "individual",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }),
+        },
+        { merge: true }
+      );
 
       res.status(200).json({
         success: true,
         user: {
           email: cleanEmail,
-          fullName: userData.fullName || "Taxpayer",
-          role: userData.role || "taxpayer",
+          fullName: userData.fullName || "",
+          role,
           accountType: userData.accountType || "individual",
         },
       });

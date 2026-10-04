@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calculator, History, BookOpen, Settings, 
   LogOut, ShieldAlert, ShieldCheck, Download, 
   Send, FileText, Info,
-  Camera, Check, Upload, X, ArrowRight, Sparkles, RefreshCw,
+  Camera, Check, Upload, X, ArrowRight, Sparkles,
   Calendar, Sun, Moon, Users, Building, Receipt, Stamp
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
@@ -16,7 +16,9 @@ import CMSManager from './CMSManager';
 import NotificationPanel from './NotificationPanel';
 import { useToast } from './Toast';
 import { useAppContext } from '../AppShell';
-import { usePersistedState } from '../hooks/usePersistedState';
+import { useUserPersistedState, getDisplayName, getGreetingName, getInitials, isDemoSession } from '../utils/userScope';
+import { calculatePIT, applyProgressiveBands } from '../utils/taxEngine';
+import { calculateCIT } from '../utils/citEngine';
 
 // Extracted dashboard tab components
 import {
@@ -32,7 +34,8 @@ import {
   SyncTransaction,
 } from './dashboard/index';
 
-const INITIAL_FILINGS: TaxFiling[] = [
+// Sample records — shown ONLY to the guest demo account. Real users start empty.
+const DEMO_FILINGS: TaxFiling[] = [
   {
     id: 'f1',
     period: 'Year 2025',
@@ -71,7 +74,7 @@ const INITIAL_FILINGS: TaxFiling[] = [
   }
 ];
 
-const INITIAL_TRANSACTIONS: SyncTransaction[] = [
+const DEMO_TRANSACTIONS: SyncTransaction[] = [
   {
     id: 't1',
     merchant: 'Shoprite Lagos',
@@ -114,23 +117,43 @@ const INITIAL_TRANSACTIONS: SyncTransaction[] = [
   }
 ];
 
+const RECEIPT_CATEGORIES = [
+  { label: 'Rent Relief / Workspace', deductible: true },
+  { label: 'Business Travel', deductible: true },
+  { label: 'Office Equipment', deductible: true },
+  { label: 'Utilities / Power', deductible: true },
+  { label: 'Business Hospitality', deductible: true },
+  { label: 'Professional Services', deductible: true },
+  { label: 'Tax Remittance', deductible: true },
+  { label: 'Personal Consumption', deductible: false },
+];
+
+const todayISO = () => new Date().toISOString().split('T')[0];
+
 export default function Dashboard() {
   const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  const [filings, setFilings] = usePersistedState<TaxFiling[]>('filings', INITIAL_FILINGS);
-  const [transactions, setTransactions] = usePersistedState<SyncTransaction[]>('transactions', INITIAL_TRANSACTIONS);
+  const [filings, setFilings] = useUserPersistedState<TaxFiling[]>('filings', [], DEMO_FILINGS);
+  const [transactions, setTransactions] = useUserPersistedState<SyncTransaction[]>('transactions', [], DEMO_TRANSACTIONS);
+  const [annualGrossIncome, setAnnualGrossIncome] = useUserPersistedState<number>('annual_gross_income', 0, 4200000);
   const [selectedFiling, setSelectedFiling] = useState<TaxFiling | null>(null);
+  const isDemo = isDemoSession(session);
 
-  // Switcher account state ('personal' | 'business')
-  const [accountMode, setAccountMode] = useState<'personal' | 'business'>('personal');
+  // Account type comes from the user's registration (no fake second account)
+  const accountMode: 'personal' | 'business' = session.accountType === 'business' ? 'business' : 'personal';
 
-  // Scanner modal states
+  // Receipt entry modal states
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scanStep, setScanStep] = useState<'upload' | 'scanning' | 'result'>('upload');
-  const [_scannedFile, setScannedFile] = useState<string | null>(null);
-  const [selectedPresetReceipt, setSelectedPresetReceipt] = useState<number | null>(null);
-  const [scanProgress, setScanProgress] = useState(0);
+  const [scanStep, setScanStep] = useState<'upload' | 'result'>('upload');
+  const [receiptForm, setReceiptForm] = useState({
+    merchant: '',
+    amount: '',
+    category: RECEIPT_CATEGORIES[0].label,
+    date: todayISO(),
+    isDeductible: true,
+    fileName: '',
+  });
   const [scannedData, setScannedData] = useState<{
     merchant: string;
     amount: number;
@@ -143,96 +166,101 @@ export default function Dashboard() {
   const [isFilingFlow, setIsFilingFlow] = useState(false);
   const [filingStep, setFilingStep] = useState<1 | 2 | 3>(1);
   const [selectedFilingTransactions, setSelectedFilingTransactions] = useState<string[]>(
-    INITIAL_TRANSACTIONS.filter(t => t.isDeductible).map(t => t.id)
+    () => transactions.filter(t => t.isDeductible).map(t => t.id)
   );
   const [acceptDeclaration, setAcceptDeclaration] = useState(false);
-  const [newFilingRef, setNewFilingRef] = useState('NTX-9823-Lagos');
-  const [filingLiability, setFilingLiability] = useState(185000);
+  const [newFilingRef, setNewFilingRef] = useState('');
+  const [filingLiability, setFilingLiability] = useState(0);
 
   // Confetti Canvas Ref
   const confettiCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Preset receipts for easy scanning simulation
-  const presetReceipts = [
-    {
-      merchant: 'Manda Office Rent Ltd',
-      amount: 150000,
-      category: 'Rent Relief / Workspace',
-      date: 'Oct 24, 2026',
-      isDeductible: true,
-      fileName: 'rent_receipt_manda.pdf'
-    },
-    {
-      merchant: 'Eko Hotels & Suites (Client Dinner)',
-      amount: 85000,
-      category: 'Business Hospitality',
-      date: 'Oct 23, 2026',
-      isDeductible: true,
-      fileName: 'ekohotels_invoice_85000.png'
-    },
-    {
-      merchant: 'Slot Systems Ikeja',
-      amount: 420000,
-      category: 'Office Equipment',
-      date: 'Oct 22, 2026',
-      isDeductible: true,
-      fileName: 'slot_ikeja_receipt_phone.jpg'
-    },
-    {
-      merchant: 'Spar Supermarket Lagos',
-      amount: 12500,
-      category: 'Personal Consumption',
-      date: 'Oct 20, 2026',
-      isDeductible: false,
-      fileName: 'spar_receipt_groceries.png'
-    }
-  ];
+  // ── Identity (always the signed-in user's registered name) ──────────
+  const currentTaxpayerFullName = getDisplayName(session);
+  const currentTaxpayerName = getGreetingName(session);
+  const currentTaxpayerInitials = getInitials(currentTaxpayerFullName);
 
-  // Switcher name & dynamic values
-  const currentTaxpayerName = accountMode === 'personal' ? 'Chidi' : 'Apex Ventures Ltd';
-  const currentTaxpayerFullName = accountMode === 'personal' ? (session.fullName || 'Chinedu Abiodun Okafor') : 'Apex Ventures & Logistics Ltd';
-  
-  // Donut chart parameters based on account mode
-  const donutData = accountMode === 'personal' ? {
-    total: 45000,
-    pitLabel: "Personal Income Tax",
-    pitValue: 27000,
-    vatLabel: "VAT Paid",
-    vatValue: 11250,
-    deductionsLabel: "Deductions",
-    deductionsValue: 6750,
-    pitStroke: "150.8, 251.2",
-    vatStroke: "62.8, 251.2",
-    vatOffset: -150.8,
-    dedStroke: "37.7, 251.2",
-    dedOffset: -213.6
-  } : {
-    total: 1850000,
-    pitLabel: "Company Income Tax",
-    pitValue: 1110000,
-    vatLabel: "VAT Remitted",
-    vatValue: 462500,
-    deductionsLabel: "Allowable Expenses",
-    deductionsValue: 277500,
-    pitStroke: "150.8, 251.2",
-    vatStroke: "62.8, 251.2",
-    vatOffset: -150.8,
-    dedStroke: "37.7, 251.2",
-    dedOffset: -213.6
-  };
-
-  // Deductions Progress parameters
-  const rentScannedSum = transactions
-    .filter(t => t.category.includes('Rent') || t.merchant.includes('Rent'))
+  // ── Figures derived from the user's own records ─────────────────────
+  const currentYear = String(new Date().getFullYear());
+  const yearFilings = filings.filter(f => f.period.includes(currentYear) || f.dateFiled.startsWith(currentYear));
+  const incomeTaxPaid = yearFilings
+    .filter(f => /income tax|\bPIT\b|\bCIT\b/i.test(f.type))
+    .reduce((sum, f) => sum + f.amount, 0);
+  const vatPaid = yearFilings
+    .filter(f => /VAT|value added/i.test(f.type))
+    .reduce((sum, f) => sum + f.amount, 0);
+  const deductibleTotal = transactions
+    .filter(t => t.isDeductible)
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const personalRentReliefUsed = 170000 + rentScannedSum;
+  const DONUT_CIRCUMFERENCE = 251.2; // 2πr for r = 40
+  const donutTotal = incomeTaxPaid + vatPaid + deductibleTotal;
+  const seg = (v: number) => (donutTotal > 0 ? (v / donutTotal) * DONUT_CIRCUMFERENCE : 0);
+  const pitSeg = seg(incomeTaxPaid);
+  const vatSeg = seg(vatPaid);
+  const dedSeg = seg(deductibleTotal);
+
+  const donutData = {
+    total: donutTotal,
+    pitLabel: accountMode === 'personal' ? 'Personal Income Tax' : 'Company Income Tax',
+    pitValue: incomeTaxPaid,
+    vatLabel: accountMode === 'personal' ? 'VAT Paid' : 'VAT Remitted',
+    vatValue: vatPaid,
+    deductionsLabel: accountMode === 'personal' ? 'Deductions' : 'Allowable Expenses',
+    deductionsValue: deductibleTotal,
+    pitStroke: `${pitSeg}, ${DONUT_CIRCUMFERENCE}`,
+    vatStroke: `${vatSeg}, ${DONUT_CIRCUMFERENCE}`,
+    vatOffset: -pitSeg,
+    dedStroke: `${dedSeg}, ${DONUT_CIRCUMFERENCE}`,
+    dedOffset: -(pitSeg + vatSeg),
+  };
+
+  // Rent relief: 20% of annual rent paid, capped at ₦500,000
+  const rentPaidTotal = transactions
+    .filter(t => t.category.includes('Rent') || t.merchant.includes('Rent'))
+    .reduce((sum, t) => sum + t.amount, 0);
   const personalRentReliefCap = 500000;
+  const personalRentReliefUsed = Math.min(personalRentReliefCap, Math.round(rentPaidTotal * 0.2));
   const personalRentReliefPercent = Math.min(100, Math.round((personalRentReliefUsed / personalRentReliefCap) * 100));
 
-  const businessExpenseUsed = 1200000 + transactions.filter(t => t.isDeductible).reduce((sum, t) => sum + t.amount, 0);
+  const businessExpenseUsed = deductibleTotal;
   const businessExpenseCap = 3000000;
   const businessExpensePercent = Math.min(100, Math.round((businessExpenseUsed / businessExpenseCap) * 100));
+
+  // Achievements derived from records (no invented rankings)
+  const filedYears = new Set(
+    filings
+      .filter(f => /income tax|\bPIT\b|\bCIT\b/i.test(f.type))
+      .map(f => (f.period.match(/\b(20\d{2})\b/) || f.dateFiled.match(/^(20\d{2})/) || [])[1])
+      .filter(Boolean)
+  );
+  let filingStreak = 0;
+  for (let y = Number(currentYear); filedYears.has(String(y)); y--) filingStreak++;
+  if (filingStreak === 0) {
+    for (let y = Number(currentYear) - 1; filedYears.has(String(y)); y--) filingStreak++;
+  }
+  // Liability from the user's declared annual income using the real tax engines
+  const PIT_DEFAULTS = {
+    pensionRate: 8, vpc: false, lifeAssurance: false, nhf: false, nhis: false, charity: false,
+    children: false, dependantRelative: false, disabled: false, mortgageInterest: false, bondExempt: false,
+  };
+  const computeLiability = (deductions: number) => {
+    const gross = Math.max(0, annualGrossIncome);
+    if (gross === 0) return { gross, net: 0, liability: 0 };
+    if (accountMode === 'business') {
+      const cit = calculateCIT({
+        grossTurnover: gross, totalRevenue: gross, allowableExpenses: deductions,
+        capitalAllowances: 0, lossesCarriedForward: 0, isTechLevySector: false,
+      });
+      return { gross, net: Math.round(cit.assessableProfit), liability: Math.round(cit.totalTaxPayable) };
+    }
+    const base = calculatePIT(gross, PIT_DEFAULTS);
+    const net = Math.max(0, base.taxableIncome - deductions);
+    return { gross, net: Math.round(net), liability: Math.round(applyProgressiveBands(net).annualTax) };
+  };
+
+  // Tax saved by the user's recorded deductible expenses (0 until income is entered)
+  const estimatedSavings = Math.max(0, computeLiability(0).liability - computeLiability(deductibleTotal).liability);
 
   // Confetti Simulation Effect for success screen
   useEffect(() => {
@@ -313,38 +341,34 @@ export default function Dashboard() {
     }
   }, [isFilingFlow, filingStep]);
 
-  // Receipt Scanner Flow Handles
-  const selectPresetReceiptFile = (index: number) => {
-    setSelectedPresetReceipt(index);
-    setScannedFile(presetReceipts[index].fileName);
-  };
+  // Receipt entry flow (user-entered details; OCR arrives in a later phase)
+  const resetReceiptForm = () => setReceiptForm({
+    merchant: '',
+    amount: '',
+    category: RECEIPT_CATEGORIES[0].label,
+    date: todayISO(),
+    isDeductible: true,
+    fileName: '',
+  });
 
-  const handleStartScan = () => {
-    if (selectedPresetReceipt === null) {
-      showToast('warning', 'Scanner Error', 'Please choose a receipt mock file to scan.');
+  const handleReviewReceipt = () => {
+    const amount = Number(String(receiptForm.amount).replace(/[^0-9.]/g, ''));
+    if (!receiptForm.merchant.trim()) {
+      showToast('warning', 'Missing merchant', 'Enter the merchant or vendor name.');
       return;
     }
-    setScanStep('scanning');
-    setScanProgress(0);
-
-    const interval = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          const data = presetReceipts[selectedPresetReceipt];
-          setScannedData({
-            merchant: data.merchant,
-            amount: data.amount,
-            category: data.category,
-            date: data.date,
-            isDeductible: data.isDeductible
-          });
-          setScanStep('result');
-          return 100;
-        }
-        return prev + 20;
-      });
-    }, 400);
+    if (!amount || amount <= 0) {
+      showToast('warning', 'Invalid amount', 'Enter the amount on the receipt.');
+      return;
+    }
+    setScannedData({
+      merchant: receiptForm.merchant.trim(),
+      amount: Math.round(amount),
+      category: receiptForm.category,
+      date: new Date(`${receiptForm.date || todayISO()}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      isDeductible: receiptForm.isDeductible,
+    });
+    setScanStep('result');
   };
 
   const handleSyncToLedger = () => {
@@ -366,9 +390,9 @@ export default function Dashboard() {
 
     setIsScannerOpen(false);
     setScanStep('upload');
-    setScannedFile(null);
-    setSelectedPresetReceipt(null);
+    resetReceiptForm();
     setScannedData(null);
+    showToast('success', 'Expense recorded', `${newTx.merchant} added to your ledger.`);
   };
 
   // Filing Flow Submits
@@ -382,16 +406,13 @@ export default function Dashboard() {
     .filter(t => selectedFilingTransactions.includes(t.id))
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const calculateFilingTaxes = () => {
-    const gross = 4200000;
-    const net = Math.max(0, gross - currentDeductionsTotal);
-    const liability = Math.round(net * 0.05);
-    return { gross, net, liability };
-  };
-
-  const { gross: fGross, net: fNet, liability: fLiability } = calculateFilingTaxes();
+  const { gross: fGross, net: fNet, liability: fLiability } = computeLiability(currentDeductionsTotal);
 
   const handleProceedToStep2 = () => {
+    if (annualGrossIncome <= 0) {
+      showToast('warning', 'Income required', `Enter your annual ${accountMode === 'personal' ? 'gross income' : 'turnover'} to compute your liability.`);
+      return;
+    }
     setFilingStep(2);
     setAcceptDeclaration(false);
   };
@@ -399,17 +420,17 @@ export default function Dashboard() {
   const handleAuthorizeAndFile = () => {
     if (!acceptDeclaration) return;
     setFilingStep(3);
-    const generatedRef = "NTX-" + Math.floor(1000 + Math.random() * 9000) + "-Lagos";
+    const generatedRef = `DIY-${currentYear}-${Math.floor(100000 + Math.random() * 900000)}`;
     setNewFilingRef(generatedRef);
     setFilingLiability(fLiability);
 
     const newFiling: TaxFiling = {
       id: 'filed_' + Date.now(),
-      period: 'FY 2026-27 (Current)',
+      period: `FY ${currentYear}`,
       type: accountMode === 'personal' ? 'Personal Income Tax (PIT)' : 'Company Income Tax (CIT)',
       amount: fLiability,
-      status: 'Paid',
-      dateFiled: new Date().toISOString().split('T')[0],
+      status: 'Pending',
+      dateFiled: todayISO(),
       receiptNumber: generatedRef
     };
 
@@ -507,7 +528,9 @@ export default function Dashboard() {
               { tab: 'stamp-cgt' as DashboardTab, icon: Stamp, label: 'Stamp Duty & CGT' },
               { tab: 'tcc' as DashboardTab, icon: ShieldCheck, label: 'TCC Readiness' },
               { tab: 'invoicing' as DashboardTab, icon: FileText, label: 'E-Invoicing' },
-              { tab: 'cms' as DashboardTab, icon: LayoutDashboard, label: 'CMS Admin' },
+              ...(session.systemRole === 'admin' || session.adminRole
+                ? [{ tab: 'cms' as DashboardTab, icon: LayoutDashboard, label: 'CMS Admin' }]
+                : []),
             ].map(({ tab, icon: Icon, label }) => (
               <button
                 key={tab}
@@ -529,12 +552,12 @@ export default function Dashboard() {
         <div className="px-4 pt-6 border-t border-outline-variant/50 space-y-3">
           <div className="flex items-center space-x-3 px-2">
             <div className="w-10 h-10 rounded-full bg-primary-container text-white flex items-center justify-center font-bold font-mono uppercase">
-              {currentTaxpayerFullName[0]}
+              {currentTaxpayerInitials}
             </div>
             <div className="overflow-hidden text-left">
               <p className="text-xs font-bold text-primary-container truncate">{currentTaxpayerFullName}</p>
               <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider truncate">
-                {accountMode} Registry
+                {isDemo ? 'Demo account' : `${accountMode} Registry`}
               </p>
             </div>
           </div>
@@ -560,30 +583,29 @@ export default function Dashboard() {
 
           {/* Switching & Notifications */}
           <div className="flex items-center space-x-4">
-            {/* Multi-Account Switcher */}
-            <div 
-              onClick={() => setAccountMode(prev => prev === 'personal' ? 'business' : 'personal')}
-              className="cursor-pointer select-none"
-            >
-              <div className="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant rounded-full p-1 pr-3 transition-colors">
+            {/* Account badge (type comes from registration) */}
+            <div className="select-none" title={session.contactMethod}>
+              <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-full p-1 pr-3">
                 <div className="w-7 h-7 rounded-full bg-primary-container text-white flex items-center justify-center">
-                  <span className="font-bold text-xs uppercase">{currentTaxpayerFullName[0]}</span>
+                  <span className="font-bold text-[10px] uppercase">{currentTaxpayerInitials}</span>
                 </div>
                 <div className="flex flex-col text-left">
                   <span className="text-[9px] font-bold text-on-surface-variant leading-none">
-                    {accountMode === 'personal' ? 'Personal' : 'Business'}
+                    {accountMode === 'personal' ? 'Personal' : 'Business'} account
                   </span>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <RefreshCw className="w-2 h-2 text-primary animate-spin-slow" />
-                    <span className="text-[8px] text-primary font-bold leading-none">
-                      Switch to {accountMode === 'personal' ? 'Business' : 'Personal'}
-                    </span>
-                  </div>
+                  <span className="text-[8px] text-primary font-bold leading-none mt-0.5 max-w-[140px] truncate">
+                    {isDemo ? 'Sample data' : session.contactMethod}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <NotificationPanel />
+            <NotificationPanel
+              filings={filings}
+              transactions={transactions}
+              isNINLinked={session.isNINLinked}
+              accountMode={accountMode}
+            />
           </div>
         </div>
         
@@ -656,13 +678,40 @@ export default function Dashboard() {
             {/* Step 1 Content: Reconcile Receipts */}
             {filingStep === 1 && (
               <div className="space-y-6">
+                <div className="bg-white border border-outline-variant/60 rounded-xl p-5 shadow-xs space-y-3">
+                  <h3 className="font-bold text-sm text-primary-container uppercase tracking-wider">
+                    {accountMode === 'personal' ? 'Annual Gross Income' : 'Annual Turnover'}
+                  </h3>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Enter your total {accountMode === 'personal' ? 'gross income' : 'turnover'} for FY {currentYear}. Your liability is computed with the Nigeria Tax Act 2025 rules.
+                  </p>
+                  <div className="relative max-w-xs">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-on-surface-variant">₦</span>
+                    <input
+                      id="filing-annual-income"
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={annualGrossIncome || ''}
+                      onChange={(e) => setAnnualGrossIncome(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-full pl-8 pr-3 py-2.5 border border-outline-variant rounded-lg text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary-container/30"
+                    />
+                  </div>
+                </div>
+
                 <div className="bg-white border border-outline-variant/60 rounded-xl p-5 shadow-xs space-y-4">
-                  <h3 className="font-bold text-sm text-primary-container uppercase tracking-wider">1. Select Allowable Tax Deductions</h3>
+                  <h3 className="font-bold text-sm text-primary-container uppercase tracking-wider">2. Select Allowable Tax Deductions</h3>
                   <p className="text-xs text-on-surface-variant leading-relaxed">
                     Under statutory guidelines, only certified business transactions and qualified personal deductions can reduce your taxable liabilities. Uncheck any non-eligible expenses.
                   </p>
 
                   <div className="space-y-2 mt-4">
+                    {transactions.length === 0 && (
+                      <div className="p-4 border border-dashed border-outline-variant rounded-xl text-center text-xs text-on-surface-variant">
+                        No expenses recorded yet. Use <span className="font-bold">Add Receipt</span> on the overview to record deductible expenses, or continue without deductions.
+                      </div>
+                    )}
                     {transactions.map((t) => (
                       <div 
                         key={t.id}
@@ -777,7 +826,7 @@ export default function Dashboard() {
                         : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                     }`}
                   >
-                    <span>Authorize NRS Payment &amp; File Returns</span>
+                    <span>Confirm &amp; Record Return</span>
                     <Send className="w-4 h-4 text-accent-green" />
                   </button>
 
@@ -793,7 +842,7 @@ export default function Dashboard() {
                 <div className="text-center mt-4">
                   <p className="text-[10px] text-on-surface-variant flex items-center justify-center gap-1">
                     <ShieldCheck className="w-4 h-4 text-[#013220]" />
-                    <span>Secure connection encrypted by Nigerian Revenue Service standards.</span>
+                    <span>Draft summary only — DIYtax9ja does not submit returns to NRS on your behalf yet.</span>
                   </p>
                 </div>
               </div>
@@ -815,9 +864,9 @@ export default function Dashboard() {
                   </motion.div>
 
                   <div className="space-y-3 mb-6">
-                    <h1 className="font-display-lg text-2xl md:text-3xl font-black text-primary">Filing Successful!</h1>
+                    <h1 className="font-display-lg text-2xl md:text-3xl font-black text-primary">Return Prepared!</h1>
                     <p className="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
-                      Your {accountMode === 'personal' ? '2026 Personal Income Tax Return' : '2026 Company Income Tax Return'} has been successfully submitted to the <span className="font-bold text-on-surface">Nigeria Federal Inland Revenue Service (FIRS)</span>.
+                      Your {accountMode === 'personal' ? `${currentYear} Personal Income Tax Return` : `${currentYear} Company Income Tax Return`} has been recorded in your filing history as <span className="font-bold text-on-surface">Pending</span>. Complete payment and submission on the NRS / State IRS portal using this summary.
                     </p>
                     <div className="inline-flex items-center gap-1.5 bg-surface-container px-3.5 py-1.5 rounded-full border border-outline-variant/60">
                       <ShieldCheck className="w-4 h-4 text-primary" />
@@ -831,7 +880,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md mb-6 text-left">
                     <div className="p-4 bg-surface-container-low border border-outline-variant rounded-xl border-l-4 border-l-primary-container flex flex-col gap-0.5">
                       <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">TAX YEAR</span>
-                      <span className="font-bold text-sm text-primary">2026-27 Fiscal</span>
+                      <span className="font-bold text-sm text-primary">FY {currentYear}</span>
                     </div>
                     <div className="p-4 bg-surface-container-low border border-outline-variant rounded-xl border-l-4 border-l-primary-container flex flex-col gap-0.5">
                       <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">TOTAL LIABILITY</span>
@@ -840,8 +889,8 @@ export default function Dashboard() {
                     <div className="p-4 bg-surface-container-low border border-outline-variant rounded-xl border-l-4 border-l-primary-container flex flex-col gap-0.5 col-span-1 md:col-span-2">
                       <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-wider">FILING STATUS</span>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-                        <span className="font-bold text-xs text-primary">Submitted &amp; Verified</span>
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <span className="font-bold text-xs text-primary">Pending payment &amp; submission</span>
                       </div>
                     </div>
                   </div>
@@ -849,11 +898,11 @@ export default function Dashboard() {
                   {/* Actions */}
                   <div className="space-y-3 w-full max-w-md">
                     <button
-                      onClick={() => showToast('success', 'Download Started', `Downloading TCC PDF certificate for ref: ${newFilingRef}`)}
+                      onClick={() => { handleExitFilingFlow(); setActiveTab('filing-history'); }}
                       className="w-full bg-primary-container text-white hover:opacity-95 font-bold py-3.5 px-6 rounded-lg flex items-center justify-center gap-2 active:scale-98 transition-transform text-xs uppercase tracking-wider cursor-pointer h-14"
                     >
                       <Download className="w-4 h-4 text-accent-green" />
-                      <span>Download Official Tax Clearance Certificate (TCC) PDF</span>
+                      <span>View &amp; Download Filing Summary</span>
                     </button>
 
                     <button
@@ -886,7 +935,11 @@ export default function Dashboard() {
             )}
 
             {!isFilingFlow && activeTab === 'tcc' && (
-              <TCCDashboard filings={filings} />
+              <TCCDashboard
+                filings={filings}
+                accountMode={accountMode}
+                onStartFiling={handleStartFiling}
+              />
             )}
 
             {!isFilingFlow && activeTab === 'payroll' && (
@@ -922,6 +975,9 @@ export default function Dashboard() {
                 businessExpenseUsed={businessExpenseUsed}
                 businessExpenseCap={businessExpenseCap}
                 businessExpensePercent={businessExpensePercent}
+                estimatedSavings={estimatedSavings}
+                filingStreak={filingStreak}
+                isDemo={isDemo}
                 onStartFiling={handleStartFiling}
                 onViewLedger={() => setActiveTab('filing-history')}
               />
@@ -941,6 +997,7 @@ export default function Dashboard() {
                 session={session}
                 onSelectFiling={setSelectedFiling}
                 onStartFiling={handleStartFiling}
+                onMarkPaid={(id) => setFilings(prev => prev.map(f => (f.id === id ? { ...f, status: 'Paid' as const } : f)))}
               />
             )}
 
@@ -990,82 +1047,111 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Step 1: Upload */}
+              {/* Step 1: Enter receipt details */}
               {scanStep === 'upload' && (
-                <div className="p-6 space-y-6 text-left">
+                <div className="p-6 space-y-4 text-left">
                   <div>
-                    <h3 className="font-bold text-sm text-primary">Upload or Select a Rent / Expense Receipt</h3>
+                    <h3 className="font-bold text-sm text-primary">Record a Rent / Expense Receipt</h3>
                     <p className="text-[11px] text-on-surface-variant leading-relaxed mt-1">
-                      Our OCR scanner automatically extracts the merchant, total tax paid, VAT figures, and calculates eligible statutory deductions.
+                      Enter the details from your receipt. Deductible expenses reduce your estimated tax liability.
                     </p>
                   </div>
 
-                  <div className="border-2 border-dashed border-outline-variant hover:border-primary-container/60 rounded-xl p-5 flex flex-col items-center justify-center bg-surface-container-low/40 text-center space-y-2 select-none">
-                    <Upload className="w-8 h-8 text-on-surface-variant" />
-                    <div>
-                      <p className="text-xs font-bold text-on-surface">Drag &amp; drop receipt file here</p>
-                      <p className="text-[10px] text-on-surface-variant mt-0.5">Supports PDF, PNG, JPEG up to 5MB</p>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Merchant / Vendor</span>
+                      <input
+                        id="receipt-merchant"
+                        type="text"
+                        value={receiptForm.merchant}
+                        onChange={(e) => setReceiptForm(f => ({ ...f, merchant: e.target.value }))}
+                        placeholder="e.g. Landlord, Ikeja Electric"
+                        className="mt-1 w-full px-3 py-2 border border-outline-variant rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-container/30"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Amount (₦)</span>
+                        <input
+                          id="receipt-amount"
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={receiptForm.amount}
+                          onChange={(e) => setReceiptForm(f => ({ ...f, amount: e.target.value }))}
+                          placeholder="0"
+                          className="mt-1 w-full px-3 py-2 border border-outline-variant rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary-container/30"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Date</span>
+                        <input
+                          id="receipt-date"
+                          type="date"
+                          value={receiptForm.date}
+                          max={todayISO()}
+                          onChange={(e) => setReceiptForm(f => ({ ...f, date: e.target.value }))}
+                          className="mt-1 w-full px-3 py-2 border border-outline-variant rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-container/30"
+                        />
+                      </label>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Or Select Mockup Receipt to Simulate Scanner:</p>
-                    <div className="grid grid-cols-1 gap-2">
-                      {presetReceipts.map((preset, idx) => (
-                        <div 
-                          key={idx}
-                          onClick={() => selectPresetReceiptFile(idx)}
-                          className={`p-2.5 border rounded-lg text-xs flex items-center justify-between cursor-pointer transition-all ${
-                            selectedPresetReceipt === idx
-                              ? 'bg-[#013220]/5 border-primary-container font-semibold'
-                              : 'bg-white hover:bg-surface-container border-outline-variant/50'
-                          }`}
-                        >
-                          <div>
-                            <p className="font-bold text-[11px]">{preset.merchant}</p>
-                            <p className="text-[9px] text-on-surface-variant mt-0.5">Amount: ₦{preset.amount.toLocaleString()} • {preset.category}</p>
-                          </div>
-                          {selectedPresetReceipt === idx && <Check className="w-4 h-4 text-[#013220]" />}
-                        </div>
-                      ))}
-                    </div>
+                    <label className="block">
+                      <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Category</span>
+                      <select
+                        id="receipt-category"
+                        value={receiptForm.category}
+                        onChange={(e) => {
+                          const cat = RECEIPT_CATEGORIES.find(c => c.label === e.target.value);
+                          setReceiptForm(f => ({ ...f, category: e.target.value, isDeductible: cat ? cat.deductible : f.isDeductible }));
+                        }}
+                        className="mt-1 w-full px-3 py-2 border border-outline-variant rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary-container/30"
+                      >
+                        {RECEIPT_CATEGORIES.map(c => (
+                          <option key={c.label} value={c.label}>{c.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        id="receipt-deductible"
+                        type="checkbox"
+                        checked={receiptForm.isDeductible}
+                        onChange={(e) => setReceiptForm(f => ({ ...f, isDeductible: e.target.checked }))}
+                        className="rounded text-primary-container border-outline"
+                      />
+                      <span className="text-[11px] text-on-surface">This is a tax-deductible expense</span>
+                    </label>
+                    <label className="border-2 border-dashed border-outline-variant hover:border-primary-container/60 rounded-xl p-4 flex flex-col items-center justify-center bg-surface-container-low/40 text-center space-y-1 cursor-pointer">
+                      <Upload className="w-6 h-6 text-on-surface-variant" />
+                      <span className="text-xs font-bold text-on-surface">
+                        {receiptForm.fileName || 'Attach receipt (optional)'}
+                      </span>
+                      <span className="text-[10px] text-on-surface-variant">PDF, PNG, JPEG up to 5MB — kept for your records</span>
+                      <input
+                        id="receipt-file"
+                        type="file"
+                        accept="image/png,image/jpeg,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file && file.size > 5 * 1024 * 1024) {
+                            showToast('warning', 'File too large', 'Receipts must be 5MB or smaller.');
+                            return;
+                          }
+                          setReceiptForm(f => ({ ...f, fileName: file ? file.name : '' }));
+                        }}
+                      />
+                    </label>
                   </div>
 
                   <button
-                    onClick={handleStartScan}
-                    disabled={selectedPresetReceipt === null}
-                    className={`w-full py-3 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all ${
-                      selectedPresetReceipt !== null 
-                        ? 'bg-primary-container text-white hover:opacity-95 cursor-pointer' 
-                        : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                    }`}
+                    id="receipt-review"
+                    onClick={handleReviewReceipt}
+                    className="w-full py-3 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition-all bg-primary-container text-white hover:opacity-95 cursor-pointer"
                   >
-                    <span>Extract &amp; Scan Receipt</span>
+                    <span>Review Expense</span>
                     <Sparkles className="w-4 h-4 text-accent-green" />
                   </button>
-                </div>
-              )}
-
-              {/* Step 2: Scanning */}
-              {scanStep === 'scanning' && (
-                <div className="p-8 flex flex-col items-center text-center space-y-6">
-                  <div className="relative w-28 h-28 bg-surface-container-low rounded-xl border border-outline-variant flex items-center justify-center overflow-hidden">
-                    <FileText className="w-12 h-12 text-primary-container" />
-                    <motion.div 
-                      animate={{ y: [-40, 100] }}
-                      transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                      className="absolute left-0 right-0 h-1 bg-accent-green shadow-[0_0_10px_rgba(74,222,128,0.8)]"
-                    />
-                  </div>
-
-                  <div className="space-y-2 w-full">
-                    <p className="font-bold text-xs text-primary uppercase tracking-widest animate-pulse">OCR Extraction Active...</p>
-                    <p className="text-[11px] text-on-surface-variant">Extracting lines, verifying digital VAT signatures &amp; merchant registries...</p>
-                    
-                    <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
-                      <div className="bg-[#013220] h-full transition-all duration-300" style={{ width: `${scanProgress}%` }} />
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -1076,8 +1162,8 @@ export default function Dashboard() {
                     <div className="w-12 h-12 bg-primary-container text-white rounded-full flex items-center justify-center mx-auto mb-2">
                       <Check className="w-6 h-6 text-accent-green" />
                     </div>
-                    <h3 className="font-bold text-sm text-primary">Receipt Successfully Verified</h3>
-                    <p className="text-[10px] text-on-surface-variant font-mono uppercase tracking-widest mt-0.5">Secured &amp; Cryptographically Handshaked</p>
+                    <h3 className="font-bold text-sm text-primary">Review Expense</h3>
+                    <p className="text-[10px] text-on-surface-variant font-mono uppercase tracking-widest mt-0.5">Confirm before adding to your ledger</p>
                   </div>
 
                   <div className="divide-y divide-outline-variant/20 text-xs">
@@ -1094,7 +1180,7 @@ export default function Dashboard() {
                       <span className="font-bold text-on-surface">{scannedData.category}</span>
                     </div>
                     <div className="flex justify-between py-2">
-                      <span className="text-on-surface-variant font-medium">Date Verified</span>
+                      <span className="text-on-surface-variant font-medium">Receipt Date</span>
                       <span className="font-mono text-on-surface">{scannedData.date}</span>
                     </div>
                     <div className="flex justify-between py-2">
@@ -1110,7 +1196,7 @@ export default function Dashboard() {
                   {scannedData.isDeductible ? (
                     <div className="bg-[#bdedd2]/30 p-3 rounded-lg border border-[#6f9c84]/30 text-[10px] text-[#013220] leading-normal flex gap-2">
                       <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>This expense has been verified to fall within statutory reliefs. Syncing will immediately reduce your estimated tax liability on the home dashboard.</span>
+                      <span>You marked this expense as deductible. Syncing will reduce your estimated tax liability on the home dashboard. Keep the original receipt for NRS audits.</span>
                     </div>
                   ) : (
                     <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-[10px] text-neutral-600 leading-normal flex gap-2">
@@ -1124,7 +1210,7 @@ export default function Dashboard() {
                       onClick={() => setScanStep('upload')}
                       className="w-1/2 py-3 border border-outline text-on-surface hover:bg-surface-container font-bold text-xs uppercase tracking-wider rounded-lg active:scale-98 transition-transform cursor-pointer"
                     >
-                      Rescan / Clear
+                      Edit
                     </button>
                     <button
                       onClick={handleSyncToLedger}

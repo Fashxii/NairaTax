@@ -26,7 +26,7 @@ export interface AppContext {
 
   handleGuestDemo: (accountType: AccountType) => void;
   handleGatewayNext: (accountType: AccountType, contactMethod: string) => void;
-  handleVerifySuccess: (fullName: string) => void;
+  handleVerifySuccess: (fullName: string, accountType?: AccountType) => void;
   handleLinkSuccess: (nin: string) => void;
   handleLinkSkip: () => void;
   handleLinkNINFromDashboard: () => void;
@@ -79,11 +79,12 @@ export default function AppShell() {
   };
 
   /** Called after successful OTP verification with the user's real name from authStore */
-  const handleVerifySuccess = (fullName: string) => {
+  const handleVerifySuccess = (fullName: string, accountType?: AccountType) => {
     setSession((prev) => ({
       ...prev,
       isVerified: true,
       fullName,
+      ...(accountType ? { accountType } : {}),
     }));
     navigate('/compliance');
   };

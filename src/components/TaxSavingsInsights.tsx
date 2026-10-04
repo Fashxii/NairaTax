@@ -4,10 +4,11 @@ import { Trophy, TrendingUp, Flame, Star, Target, Sparkles } from 'lucide-react'
 interface TaxSavingsInsightsProps {
   savingsAmount: number;
   filingStreak: number;
-  percentileRank: number;
+  deductionsCount: number;
+  hasIncome?: boolean;
 }
 
-export default function TaxSavingsInsights({ savingsAmount, filingStreak, percentileRank }: TaxSavingsInsightsProps) {
+export default function TaxSavingsInsights({ savingsAmount, filingStreak, deductionsCount, hasIncome = true }: TaxSavingsInsightsProps) {
   const formatNaira = (amount: number) => '₦' + amount.toLocaleString('en-NG');
 
   return (
@@ -33,7 +34,9 @@ export default function TaxSavingsInsights({ savingsAmount, filingStreak, percen
             <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Total Saved</span>
           </div>
           <p className="text-xl font-black text-primary-container">{formatNaira(savingsAmount)}</p>
-          <p className="text-[10px] text-emerald-600 font-bold mt-1">Through legal deductions this year</p>
+          <p className="text-[10px] text-emerald-600 font-bold mt-1">
+            {hasIncome ? 'Estimated, from your recorded deductions' : 'Add your income at filing to estimate'}
+          </p>
         </motion.div>
 
         {/* Streak Badge */}
@@ -49,9 +52,11 @@ export default function TaxSavingsInsights({ savingsAmount, filingStreak, percen
           </div>
           <div className="flex items-baseline space-x-1">
             <p className="text-xl font-black text-primary-container">{filingStreak}</p>
-            <p className="text-xs font-bold text-on-surface-variant">Periods</p>
+            <p className="text-xs font-bold text-on-surface-variant">{filingStreak === 1 ? 'Year' : 'Years'}</p>
           </div>
-          <p className="text-[10px] text-orange-600 font-bold mt-1">Filed on time. Keep it up! 🔥</p>
+          <p className="text-[10px] text-orange-600 font-bold mt-1">
+            {filingStreak > 0 ? 'Consecutive years with an income tax return' : 'File your first return to start a streak'}
+          </p>
         </motion.div>
 
         {/* Community Rank */}
@@ -66,17 +71,20 @@ export default function TaxSavingsInsights({ savingsAmount, filingStreak, percen
             <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
               <Star className="w-3.5 h-3.5 text-purple-600" />
             </div>
-            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Top Saver</span>
+            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Deductions Logged</span>
           </div>
-          <p className="text-xl font-black text-primary-container">Top {percentileRank}%</p>
-          <p className="text-[10px] text-purple-600 font-bold mt-1">You save more than most users!</p>
+          <p className="text-xl font-black text-primary-container">{deductionsCount}</p>
+          <p className="text-[10px] text-purple-600 font-bold mt-1">Deductible receipts in your ledger</p>
         </motion.div>
       </div>
 
       <div className="mt-4 pt-4 border-t border-outline-variant/40 flex items-start space-x-3 text-sm">
         <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-on-surface-variant font-semibold">
-          <strong className="text-on-surface">Insight:</strong> Users who connect their bank accounts discover an average of ₦150k in missed deductible expenses annually.
+          <strong className="text-on-surface">Insight:</strong>{' '}
+          {deductionsCount === 0
+            ? 'Record rent, utilities and business expenses with the camera button to reduce your estimated tax.'
+            : 'Keep original receipts for at least 6 years — NRS can request them during an audit.'}
         </p>
       </div>
     </div>

@@ -9,7 +9,7 @@ import { AdminDashboardTab, AdminRole, AdminUser } from '../types';
 import CMSManager from './CMSManager';
 import { useAppContext } from '../AppShell';
 import { useNavigate } from 'react-router-dom';
-import { getAllUsers, registerUser, updateUser, hashPassword } from '../utils/authStore';
+import { getAllUsers, registerUser, updateUser } from '../utils/authStore';
 
 // ── Seed data for demo ──────────────────────────────────────────────
 export const INITIAL_ADMIN_USERS: AdminUser[] = [
@@ -130,8 +130,8 @@ export default function AdminDashboard() {
   const handleCreateUser = async () => {
     if (!newName.trim() || !newEmail.trim()) return;
     try {
-      const defaultPasswordHash = await hashPassword('AdminPass2026!');
-      registerUser(newEmail.trim(), newName.trim(), 'individual', newRole, defaultPasswordHash);
+      // Staff sign in with an emailed one-time code — no shared default password.
+      registerUser(newEmail.trim(), newName.trim(), 'individual', newRole, null);
       setAdminUsers(getStaffUsers());
       setNewName('');
       setNewEmail('');
