@@ -15,6 +15,9 @@ import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router
 import { AnimatePresence } from 'motion/react';
 import { AccountType } from './types';
 import { useSession } from './context/SessionContext';
+import { isDemoSession } from './utils/userScope';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from './lib/firebase';
 
 import SkipToContent from './components/SkipToContent';
 
@@ -26,7 +29,12 @@ export interface AppContext {
 
   handleGuestDemo: (accountType: AccountType) => void;
   handleGatewayNext: (accountType: AccountType, contactMethod: string) => void;
-  handleVerifySuccess: (fullName: string, accountType?: AccountType) => void;
+  handleVerifySuccess: (
+    fullName: string,
+    accountType?: AccountType,
+    isNINLinked?: boolean,
+    nin?: string
+  ) => void;
   handleLinkSuccess: (nin: string) => void;
   handleLinkSkip: () => void;
   handleLinkNINFromDashboard: () => void;
@@ -78,24 +86,42 @@ export default function AppShell() {
     navigate('/verify');
   };
 
-  /** Called after successful OTP verification with the user's real name from authStore */
-  const handleVerifySuccess = (fullName: string, accountType?: AccountType) => {
+  /** Called after successful OTP verification with the user's real name and status */
+  const handleVerifySuccess = (
+    fullName: string,
+    accountType?: AccountType,
+    isNINLinked?: boolean,
+    nin?: string
+  ) => {
     setSession((prev) => ({
       ...prev,
       isVerified: true,
       fullName,
       ...(accountType ? { accountType } : {}),
+      ...(isNINLinked !== undefined ? { isNINLinked } : {}),
+      ...(nin ? { nin } : {}),
     }));
-    navigate('/compliance');
+
+    if (isNINLinked) {
+      navigate('/dashboard');
+    } else {
+      navigate('/compliance');
+    }
   };
 
   const handleLinkSuccess = (nin: string) => {
+    const maskedNin = '***' + nin.slice(-4);
     setSession((prev) => ({
       ...prev,
       isNINLinked: true,
-      nin,
-      // fullName is already set from the verification step — no hardcoding
+      nin: maskedNin,
     }));
+
+    if (session.contactMethod && !isDemoSession(session)) {
+      const cleanEmail = session.contactMethod.toLowerCase().trim();
+      setDoc(doc(db, 'users', cleanEmail), { isNINLinked: true, nin: maskedNin }, { merge: true }).catch(() => {});
+    }
+
     navigate('/dashboard');
   };
 

@@ -15,7 +15,7 @@ service cloud.firestore {
     // User profiles — authenticated users can read their own profile; staff can view users
     match /users/{email} {
       allow read: if request.auth != null && (request.auth.token.email == email || request.auth.uid == email || request.auth.token.role in ['super_admin', 'reviewer', 'content_manager']);
-      allow write: if false; // Only Cloud Functions can write user profile doc
+      allow write: if request.auth != null && request.auth.token.role in ['super_admin'];
 
       // Subcollections (filings, transactions, invoices, employees, wht, notifications, user_settings)
       match /{subcollection}/{docId} {
@@ -28,9 +28,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Email audit logs — server-only
+    // Email audit logs — readable by super_admin
     match /email_audit_logs/{docId} {
-      allow read, write: if false;
+      allow read: if request.auth != null && request.auth.token.role in ['super_admin'];
+      allow write: if false;
     }
   }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserCheck, Shield, Activity, X, Plus, Trash2 } from 'lucide-react';
+import { Search, UserCheck, Shield, Activity, X, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { useToast } from '../Toast';
 import {
   getAllUsers,
@@ -12,6 +12,9 @@ import {
   UserRole,
   AccountType,
 } from '../../utils/authStore';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { recordAuditLog } from '../../utils/auditLogger';
 
 const ROLE_BADGES: Record<string, { label: string; bg: string; text: string }> = {
   super_admin: { label: 'Super Admin', bg: 'bg-red-100', text: 'text-red-800' },
@@ -23,6 +26,7 @@ const ROLE_BADGES: Record<string, { label: string; bg: string; text: string }> =
 export default function UserManagementPanel() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [selectedUser, setSelectedUser] = useState<RegisteredUser | null>(null);
@@ -35,9 +39,49 @@ export default function UserManagementPanel() {
   const [newRole, setNewRole] = useState<UserRole>('taxpayer');
   const [newPassword, setNewPassword] = useState('');
 
-  // Load users from authStore on mount
-  const refreshUsers = () => {
-    setUsers(getAllUsers());
+  // Load users from authStore and Firestore on mount
+  const refreshUsers = async () => {
+    setLoading(true);
+    const localUsers = getAllUsers();
+    let merged = [...localUsers];
+
+    if (db) {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          const email = (data.email || docSnap.id).toLowerCase();
+          const existingIdx = merged.findIndex((u) => u.email.toLowerCase() === email);
+          if (existingIdx >= 0) {
+            merged[existingIdx] = {
+              ...merged[existingIdx],
+              fullName: data.fullName || merged[existingIdx].fullName,
+              accountType: data.accountType || merged[existingIdx].accountType,
+              role: data.role || merged[existingIdx].role,
+              isActive: data.isActive !== undefined ? data.isActive : merged[existingIdx].isActive,
+              lastLogin: data.lastLogin || merged[existingIdx].lastLogin,
+            };
+          } else {
+            merged.push({
+              id: `user_cloud_${docSnap.id}`,
+              email,
+              fullName: data.fullName || email.split('@')[0],
+              accountType: data.accountType || 'individual',
+              role: data.role || 'taxpayer',
+              passwordHash: null,
+              isActive: data.isActive !== false,
+              createdAt: data.createdAt || new Date().toISOString(),
+              lastLogin: data.lastLogin || null,
+            });
+          }
+        });
+      } catch (err) {
+        console.debug('Firestore user query fallback to local store:', err);
+      }
+    }
+
+    setUsers(merged);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -52,13 +96,32 @@ export default function UserManagementPanel() {
     return matchesSearch && matchesRole;
   });
 
-  const toggleUserStatus = (id: string) => {
+  const toggleUserStatus = async (id: string) => {
     const user = users.find((u) => u.id === id);
     if (!user) return;
 
     const nextStatus = !user.isActive;
     updateUser(id, { isActive: nextStatus });
-    refreshUsers();
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'users', user.email.toLowerCase()), { isActive: nextStatus, updatedAt: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.debug('Firestore status update err:', err);
+      }
+    }
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: nextStatus ? 'ACTIVATE_USER_ACCOUNT' : 'SUSPEND_USER_ACCOUNT',
+      module: 'User Management',
+      severity: nextStatus ? 'INFO' : 'CRITICAL',
+      beforeState: { email: user.email, isActive: user.isActive },
+      afterState: { email: user.email, isActive: nextStatus },
+    });
+
+    await refreshUsers();
 
     showToast(
       nextStatus ? 'success' : 'warning',
@@ -67,23 +130,61 @@ export default function UserManagementPanel() {
     );
   };
 
-  const handleRoleChange = (id: string, role: UserRole) => {
+  const handleRoleChange = async (id: string, role: UserRole) => {
     const user = users.find((u) => u.id === id);
     if (!user) return;
 
     updateUser(id, { role });
-    refreshUsers();
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'users', user.email.toLowerCase()), { role, updatedAt: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.debug('Firestore role update err:', err);
+      }
+    }
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: 'REASSIGN_USER_ROLE',
+      module: 'User Management',
+      severity: 'WARN',
+      beforeState: { email: user.email, role: user.role },
+      afterState: { email: user.email, role },
+    });
+
+    await refreshUsers();
 
     showToast('success', 'Role Updated', `${user.fullName} reassigned to ${role.toUpperCase()}`);
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = async (id: string) => {
     const user = users.find((u) => u.id === id);
     if (!user) return;
 
     if (confirm(`Are you sure you want to delete user ${user.fullName} (${user.email})?`)) {
       deleteUser(id);
-      refreshUsers();
+
+      if (db) {
+        try {
+          await deleteDoc(doc(db, 'users', user.email.toLowerCase()));
+        } catch (err) {
+          console.debug('Firestore delete err:', err);
+        }
+      }
+
+      recordAuditLog({
+        actorName: 'Super Admin',
+        actorEmail: 'admin@diytax9ja.ng',
+        action: 'DELETE_USER_RECORD',
+        module: 'User Management',
+        severity: 'CRITICAL',
+        beforeState: { email: user.email, fullName: user.fullName },
+        afterState: { deleted: true },
+      });
+
+      await refreshUsers();
       showToast('info', 'User Deleted', `Removed account ${user.email} from system registry.`);
     }
   };
@@ -98,7 +199,32 @@ export default function UserManagementPanel() {
     try {
       const passwordHash = newPassword.trim() ? await hashPassword(newPassword.trim()) : null;
       registerUser(newEmail, newFullName, newAccountType, newRole, passwordHash);
-      refreshUsers();
+
+      if (db) {
+        try {
+          await setDoc(doc(db, 'users', newEmail.toLowerCase().trim()), {
+            email: newEmail.toLowerCase().trim(),
+            fullName: newFullName.trim(),
+            accountType: newAccountType,
+            role: newRole,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (err) {
+          console.debug('Firestore add user error:', err);
+        }
+      }
+
+      recordAuditLog({
+        actorName: 'Super Admin',
+        actorEmail: 'admin@diytax9ja.ng',
+        action: 'PROVISION_USER_ACCOUNT',
+        module: 'User Management',
+        severity: 'INFO',
+        afterState: { email: newEmail, fullName: newFullName, role: newRole, accountType: newAccountType },
+      });
+
+      await refreshUsers();
       setIsAddModalOpen(false);
 
       // Clear form
@@ -124,13 +250,24 @@ export default function UserManagementPanel() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-4 py-2 bg-primary-container hover:bg-primary-container/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 text-accent-green" />
-          <span>Add New User / Staff</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={refreshUsers}
+            disabled={loading}
+            className="px-3.5 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant/60 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-primary-container ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2 bg-primary-container hover:bg-primary-container/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4 text-accent-green" />
+            <span>Add New User / Staff</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

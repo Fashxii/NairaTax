@@ -1,79 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileCode, Download, Search, X, Eye } from 'lucide-react';
+import { FileCode, Download, Search, X, Eye, RefreshCw } from 'lucide-react';
 import { useToast } from '../Toast';
+import { fetchCombinedAuditLogs, AuditLogEntry } from '../../utils/auditLogger';
 
-export interface AuditLogEntry {
-  id: string;
-  actorName: string;
-  actorEmail: string;
-  action: string;
-  module: 'System Config' | 'User Management' | 'Security & API' | 'Filing Engine';
-  severity: 'INFO' | 'WARN' | 'CRITICAL';
-  ipAddress: string;
-  timestamp: string;
-  beforeState?: Record<string, unknown>;
-  afterState?: Record<string, unknown>;
-}
-
-const INITIAL_LOGS: AuditLogEntry[] = [
-  {
-    id: 'log_1001',
-    actorName: 'Adebayo Ogunlade',
-    actorEmail: 'adebayo@diytax9ja.ng',
-    action: 'UPDATE_SYSTEM_TAX_DEFAULTS',
-    module: 'System Config',
-    severity: 'WARN',
-    ipAddress: '197.210.64.12',
-    timestamp: '2026-08-08 15:02:14',
-    beforeState: { vatRate: 5.0, maintenanceMode: false },
-    afterState: { vatRate: 7.5, maintenanceMode: false },
-  },
-  {
-    id: 'log_1002',
-    actorName: 'Adebayo Ogunlade',
-    actorEmail: 'adebayo@diytax9ja.ng',
-    action: 'PROVISION_API_KEY',
-    module: 'Security & API',
-    severity: 'INFO',
-    ipAddress: '197.210.64.12',
-    timestamp: '2026-08-08 14:45:00',
-    beforeState: { keyCount: 2 },
-    afterState: { keyCount: 3, keyName: 'Mono Open Banking Webhook Key' },
-  },
-  {
-    id: 'log_1003',
-    actorName: 'Fatima Bello',
-    actorEmail: 'fatima.b@diytax9ja.ng',
-    action: 'SUSPEND_USER_ACCOUNT',
-    module: 'User Management',
-    severity: 'CRITICAL',
-    ipAddress: '102.88.19.04',
-    timestamp: '2026-08-07 16:20:11',
-    beforeState: { userId: 'u104', status: 'active' },
-    afterState: { userId: 'u104', status: 'suspended', reason: 'Unverified NIN details' },
-  },
-  {
-    id: 'log_1004',
-    actorName: 'System Worker',
-    actorEmail: 'system@diytax9ja.ng',
-    action: 'MONO_WEBHOOK_SYNC_SUCCESS',
-    module: 'Filing Engine',
-    severity: 'INFO',
-    ipAddress: '52.14.99.10',
-    timestamp: '2026-08-07 12:00:05',
-    beforeState: { accountId: 'mono_acc_01', lastSync: '2026-08-06' },
-    afterState: { accountId: 'mono_acc_01', syncedTransactionsCount: 14 },
-  },
-];
+export type { AuditLogEntry };
 
 export default function AuditLogViewer() {
   const { showToast } = useToast();
-  const [logs] = useState<AuditLogEntry[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('ALL');
   const [moduleFilter, setModuleFilter] = useState<string>('ALL');
   const [selectedDiffLog, setSelectedDiffLog] = useState<AuditLogEntry | null>(null);
+
+  const loadLogs = async () => {
+    setLoading(true);
+    try {
+      const liveLogs = await fetchCombinedAuditLogs();
+      setLogs(liveLogs);
+    } catch {
+      // fallback handled gracefully in logger
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLogs();
+  }, []);
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
@@ -131,13 +87,24 @@ export default function AuditLogViewer() {
           </p>
         </div>
 
-        <button
-          onClick={exportCSV}
-          className="px-4 py-2 bg-primary-container hover:bg-primary-container/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <Download className="w-4 h-4 text-accent-green" />
-          <span>Export Audit Log CSV</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={loadLogs}
+            disabled={loading}
+            className="px-3.5 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant/60 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-primary-container ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+
+          <button
+            onClick={exportCSV}
+            className="px-4 py-2 bg-primary-container hover:bg-primary-container/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4 text-accent-green" />
+            <span>Export Audit Log CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}

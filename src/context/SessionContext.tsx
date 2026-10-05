@@ -10,6 +10,7 @@ import { UserSession } from '../types';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { removeStored, getStored, setStored } from '../utils/store';
 import { auth, fbSignOut } from '../lib/firebase';
+import { recordAuditLog } from '../utils/auditLogger';
 
 const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -54,19 +55,36 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const existing = getStored<number>('session_login_time', 0);
       if (existing === 0) {
         setStored('session_login_time', Date.now());
+        recordAuditLog({
+          actorName: session.fullName || session.contactMethod,
+          actorEmail: session.contactMethod,
+          action: 'USER_SESSION_AUTHENTICATED',
+          module: 'Security & API',
+          severity: 'INFO',
+          afterState: { accountType: session.accountType, email: session.contactMethod, ninLinked: session.isNINLinked },
+        });
       }
     }
-  }, [session.isVerified]);
+  }, [session.isVerified, session.fullName, session.contactMethod, session.accountType, session.isNINLinked]);
 
   const isAuthenticated = session.isVerified;
 
   const logout = useCallback(() => {
+    if (session.contactMethod) {
+      recordAuditLog({
+        actorName: session.fullName || session.contactMethod,
+        actorEmail: session.contactMethod,
+        action: 'USER_LOGOUT',
+        module: 'Security & API',
+        severity: 'INFO',
+      });
+    }
     setSession(DEFAULT_SESSION);
     // Clear only session state — keep the user registry and per-user data intact.
     removeStored('session_login_time');
     sessionStorage.removeItem('adminRole');
     fbSignOut(auth).catch(() => {});
-  }, [setSession]);
+  }, [session.contactMethod, session.fullName, setSession]);
 
   return (
     <SessionContext.Provider value={{ session, setSession, isAuthenticated, logout }}>

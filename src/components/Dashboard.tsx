@@ -980,6 +980,7 @@ export default function Dashboard() {
                 isDemo={isDemo}
                 onStartFiling={handleStartFiling}
                 onViewLedger={() => setActiveTab('filing-history')}
+                onAddTransactions={(newTxs) => setTransactions(prev => [...newTxs, ...prev])}
               />
             )}
 
@@ -1134,11 +1135,33 @@ export default function Dashboard() {
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file && file.size > 5 * 1024 * 1024) {
+                          if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
                             showToast('warning', 'File too large', 'Receipts must be 5MB or smaller.');
                             return;
                           }
-                          setReceiptForm(f => ({ ...f, fileName: file ? file.name : '' }));
+
+                          const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+                          const amountMatch = baseName.match(/\b\d{3,7}\b/);
+                          const isPower = /electric|power|phcn|ikedc|ekedc/i.test(baseName);
+                          const isRent = /rent|lease|landlord|tenancy/i.test(baseName);
+                          const isTravel = /bolt|uber|flight|air|travel/i.test(baseName);
+                          const isOffice = /stationery|konga|jumia|laptop|desk|paper/i.test(baseName);
+
+                          let autoCategory = receiptForm.category;
+                          if (isPower) autoCategory = 'Utilities / Power';
+                          else if (isRent) autoCategory = 'Rent Relief / Workspace';
+                          else if (isTravel) autoCategory = 'Business Travel';
+                          else if (isOffice) autoCategory = 'Office Equipment';
+
+                          setReceiptForm(f => ({
+                            ...f,
+                            fileName: file.name,
+                            merchant: f.merchant || (isPower ? 'Ikeja Electric PLC' : isRent ? 'Property Rent Remittance' : isTravel ? 'Business Travel' : isOffice ? 'Office Supplies' : baseName.slice(0, 35)),
+                            amount: f.amount || (amountMatch ? amountMatch[0] : ''),
+                            category: autoCategory,
+                          }));
+                          showToast('info', 'Receipt Analyzed', 'Details auto-detected from attachment — verify before saving.');
                         }}
                       />
                     </label>
