@@ -354,6 +354,8 @@ exports.verifyOTP = functions.https.onRequest({
                 fullName: userData.fullName || "",
                 role,
                 accountType: userData.accountType || "individual",
+                isNINLinked: userData.isNINLinked === true,
+                nin: userData.nin || undefined,
             },
         });
     }

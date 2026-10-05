@@ -106,7 +106,10 @@ export default function Verification() {
       const registeredType = result.user?.accountType || localUser?.accountType;
       const accountType = registeredType === 'business' || registeredType === 'individual' ? registeredType : undefined;
 
-      onVerify(fullName, accountType);
+      const isNINLinked = result.user?.isNINLinked;
+      const nin = result.user?.nin;
+
+      onVerify(fullName, accountType, isNINLinked, nin);
     } catch (err: any) {
       setIsVerifying(false);
       setError('Verification service error. Please try again.');

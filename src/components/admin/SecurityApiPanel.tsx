@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Key, ShieldAlert, Copy, Plus, Check, Trash2, Globe } from 'lucide-react';
 import { useToast } from '../Toast';
+import { getStored, setStored } from '../../utils/store';
+import { recordAuditLog } from '../../utils/auditLogger';
 
 export interface ApiKeyRecord {
   id: string;
@@ -48,10 +50,30 @@ const INITIAL_IP_WHITELIST = ['102.89.23.0/24 (Lagos HQ)', '197.210.64.0/24 (Abu
 
 export default function SecurityApiPanel() {
   const { showToast } = useToast();
-  const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>(INITIAL_API_KEYS);
-  const [ipWhitelist, setIpWhitelist] = useState<string[]>(INITIAL_IP_WHITELIST);
+  const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>(() =>
+    getStored<ApiKeyRecord[]>('security_api_keys', INITIAL_API_KEYS)
+  );
+  const [ipWhitelist, setIpWhitelist] = useState<string[]>(() =>
+    getStored<string[]>('security_ip_whitelist', INITIAL_IP_WHITELIST)
+  );
   const [newIpInput, setNewIpInput] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const updateKeys = (updater: (prev: ApiKeyRecord[]) => ApiKeyRecord[]) => {
+    setApiKeys((prev) => {
+      const next = updater(prev);
+      setStored('security_api_keys', next);
+      return next;
+    });
+  };
+
+  const updateWhitelist = (updater: (prev: string[]) => string[]) => {
+    setIpWhitelist((prev) => {
+      const next = updater(prev);
+      setStored('security_ip_whitelist', next);
+      return next;
+    });
+  };
 
   const handleGenerateKey = () => {
     const newId = `key_${Date.now()}`;
@@ -65,20 +87,42 @@ export default function SecurityApiPanel() {
       lastUsed: 'Never',
     };
 
-    setApiKeys([newRecord, ...apiKeys]);
+    updateKeys((prev) => [newRecord, ...prev]);
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: 'PROVISION_API_KEY',
+      module: 'Security & API',
+      severity: 'INFO',
+      afterState: { keyName: newRecord.name, keyId: newRecord.id, environment: newRecord.environment },
+    });
+
     showToast('success', 'API Key Provisioned', 'New API secret key generated. Ensure it is stored securely.');
   };
 
   const handleRevokeKey = (id: string) => {
-    setApiKeys((prev) =>
+    const target = apiKeys.find((k) => k.id === id);
+    updateKeys((prev) =>
       prev.map((k) => {
         if (k.id === id) {
-          showToast('warning', 'API Key Revoked', `Key ${k.name} has been revoked.`);
           return { ...k, status: 'revoked' };
         }
         return k;
       })
     );
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: 'REVOKE_API_KEY',
+      module: 'Security & API',
+      severity: 'WARN',
+      beforeState: { keyId: id, name: target?.name, status: 'active' },
+      afterState: { keyId: id, name: target?.name, status: 'revoked' },
+    });
+
+    showToast('warning', 'API Key Revoked', `Key ${target?.name || id} has been revoked.`);
   };
 
   const handleCopyKey = (id: string, text: string) => {
@@ -89,14 +133,36 @@ export default function SecurityApiPanel() {
   };
 
   const handleAddIp = () => {
-    if (!newIpInput.trim()) return;
-    setIpWhitelist([...ipWhitelist, newIpInput.trim()]);
+    const trimmed = newIpInput.trim();
+    if (!trimmed) return;
+    updateWhitelist((prev) => [...prev, trimmed]);
     setNewIpInput('');
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: 'ADD_FIREWALL_IP_RULE',
+      module: 'Security & API',
+      severity: 'INFO',
+      afterState: { ruleAdded: trimmed },
+    });
+
     showToast('success', 'IP Whitelisted', 'Added IP block to Admin Firewall.');
   };
 
   const handleRemoveIp = (index: number) => {
-    setIpWhitelist(ipWhitelist.filter((_, i) => i !== index));
+    const target = ipWhitelist[index];
+    updateWhitelist((prev) => prev.filter((_, i) => i !== index));
+
+    recordAuditLog({
+      actorName: 'Super Admin',
+      actorEmail: 'admin@diytax9ja.ng',
+      action: 'REMOVE_FIREWALL_IP_RULE',
+      module: 'Security & API',
+      severity: 'WARN',
+      beforeState: { ruleRemoved: target },
+    });
+
     showToast('info', 'IP Removed', 'Removed IP CIDR block from Whitelist.');
   };
 

@@ -49,6 +49,7 @@ interface OverviewTabProps {
   isDemo?: boolean;
   onStartFiling: () => void;
   onViewLedger: () => void;
+  onAddTransactions?: (txs: SyncTransaction[]) => void;
 }
 
 const OverviewTab = memo(function OverviewTab({
@@ -67,7 +68,8 @@ const OverviewTab = memo(function OverviewTab({
   filingStreak,
   isDemo = false,
   onStartFiling,
-  onViewLedger
+  onViewLedger,
+  onAddTransactions,
 }: OverviewTabProps) {
   const { content } = useContent();
 
@@ -111,9 +113,12 @@ const OverviewTab = memo(function OverviewTab({
 
         {/* Bank Sync Panel (Phase 4) */}
         <div className="col-span-1 lg:col-span-2">
-          <BankSyncPanel onTransactionsSynced={(count, amount) => {
-            console.log(`Synced ${count} transactions totaling ${amount}`);
-          }} />
+          <BankSyncPanel 
+            onAddTransactions={onAddTransactions}
+            onTransactionsSynced={(count, amount) => {
+              console.log(`Synced ${count} transactions totaling ${amount}`);
+            }} 
+          />
         </div>
       </div>
 

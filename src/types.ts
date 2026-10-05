@@ -17,6 +17,15 @@ export interface UserSession {
 export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'cms' | 'invoicing' | 'tcc' | 'payroll' | 'cit' | 'wht' | 'stamp-cgt';
 export type AdminDashboardTab = 'users' | 'roles' | 'cms' | 'tcc-approvals' | 'settings';
 
+export interface SyncTransaction {
+  id: string;
+  merchant: string;
+  category: string;
+  date: string;
+  amount: number;
+  isDeductible: boolean;
+}
+
 export interface TaxFiling {
   id: string;
   period: string;
