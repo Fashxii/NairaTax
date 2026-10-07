@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '../../AppShell';
 import { getDisplayName } from '../../utils/userScope';
-import { useNavigate } from 'react-router-dom';
 import SystemSettingsPanel from './SystemSettingsPanel';
 import UserManagementPanel from './UserManagementPanel';
 import SecurityApiPanel from './SecurityApiPanel';
@@ -32,13 +31,10 @@ export type EmailSubTab = 'smtp' | 'templates' | 'delivery-logs';
 
 export default function SuperAdminDashboard() {
   const { session, handleLogout, theme, onToggleTheme } = useAppContext();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SuperAdminTab>('settings');
   const [emailSubTab, setEmailSubTab] = useState<EmailSubTab>('smtp');
 
-  const onLogout = () => {
-    handleLogout();
-  };
+  const onLogout = handleLogout;
 
   return (
     <div className="min-h-screen bg-surface-container-low text-on-surface flex flex-col font-sans">

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { INACTIVITY_TIMEOUT_MS, SESSION_EXPIRY_MS } from '../context/SessionContext';
-import { setStored, getStored } from './store';
+import { INACTIVITY_TIMEOUT_MS } from '../context/SessionContext';
+import { setStored } from './store';
 import { sendOTPEmail } from './otpService';
 import { registerUser } from './authStore';
 
