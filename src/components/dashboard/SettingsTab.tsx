@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ShieldCheck, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Sun, Moon, LogOut } from 'lucide-react';
 import { UserSession } from '../../types';
 
 interface SettingsTabProps {
@@ -8,9 +8,10 @@ interface SettingsTabProps {
   currentTaxpayerFullName: string;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onLogout?: () => void;
 }
 
-export default function SettingsTab({ session, accountMode, currentTaxpayerFullName, theme, onToggleTheme }: SettingsTabProps) {
+export default function SettingsTab({ session, accountMode, currentTaxpayerFullName, theme, onToggleTheme, onLogout }: SettingsTabProps) {
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -123,6 +124,33 @@ export default function SettingsTab({ session, accountMode, currentTaxpayerFullN
               </div>
             </div>
           </div>
+
+          {/* Account Session & Sign Out */}
+          {onLogout && (
+            <div className="space-y-3 pt-6 border-t border-outline-variant/40 text-left">
+              <h4 className="font-bold text-xs text-error uppercase tracking-wider">Account Session</h4>
+              <div className="p-4 bg-error/5 border border-error/20 rounded-xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-on-surface text-xs">
+                    {session.contactMethod === 'demo@diytax9ja.ng' ? 'Exit Guest Demo Mode' : 'Sign Out of Account'}
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                    {session.contactMethod === 'demo@diytax9ja.ng'
+                      ? 'End your demo exploration session and return to the main registration/login gateway.'
+                      : 'Terminate your active authenticated session on this browser.'}
+                  </p>
+                </div>
+                <button
+                  onClick={onLogout}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-error hover:bg-error/90 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex-shrink-0 shadow-xs"
+                  id="settings-signout-btn"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>{session.contactMethod === 'demo@diytax9ja.ng' ? 'Exit Demo' : 'Sign Out'}</span>
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
 

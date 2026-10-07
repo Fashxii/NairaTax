@@ -606,6 +606,17 @@ export default function Dashboard() {
               isNINLinked={session.isNINLinked}
               accountMode={accountMode}
             />
+
+            {/* Top Bar Sign Out / Exit Demo Button */}
+            <button
+              onClick={onLogout}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider text-error bg-error/5 hover:bg-error/15 border border-error/20 transition-all cursor-pointer"
+              title={isDemo ? 'Exit Demo Mode' : 'Sign Out of Portal'}
+              id="dashboard-header-logout-btn"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{isDemo ? 'Exit Demo' : 'Sign Out'}</span>
+            </button>
           </div>
         </div>
         
@@ -926,6 +937,7 @@ export default function Dashboard() {
                 currentTaxpayerFullName={currentTaxpayerFullName}
                 theme={theme}
                 onToggleTheme={onToggleTheme}
+                onLogout={onLogout}
               />
             )}
 
@@ -978,6 +990,7 @@ export default function Dashboard() {
                 estimatedSavings={estimatedSavings}
                 filingStreak={filingStreak}
                 isDemo={isDemo}
+                onLogout={onLogout}
                 onStartFiling={handleStartFiling}
                 onViewLedger={() => setActiveTab('filing-history')}
                 onAddTransactions={(newTxs) => setTransactions(prev => [...newTxs, ...prev])}

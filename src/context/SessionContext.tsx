@@ -65,8 +65,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         severity: reason === 'inactivity_5min' ? 'WARN' : 'INFO',
         afterState: reason ? { reason } : undefined,
       });
-      // Save last email for quick re-entry on login screen
-      setStored('last_session_email', session.contactMethod);
+      // Save last email for quick re-entry on login screen (exclude demo account)
+      if (session.contactMethod !== 'demo@diytax9ja.ng') {
+        setStored('last_session_email', session.contactMethod);
+      }
     }
 
     if (reason) {
@@ -78,6 +80,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
 
     setSession(DEFAULT_SESSION);
+    removeStored('session');
     removeStored('session_login_time');
     removeStored('session_last_active');
     sessionStorage.removeItem('adminRole');
