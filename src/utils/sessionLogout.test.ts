@@ -1,83 +1,57 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getStored, setStored, removeStored } from './store';
-import { UserSession } from '../types';
+import { clearPersistedSession } from '../context/SessionContext';
+import { DEMO_EMAIL } from './demo';
 
-describe('Session Logout and Storage Management', () => {
+/**
+ * Exercises the real clearPersistedSession() used by SessionContext.logout(),
+ * rather than re-implementing the logic inside the test.
+ */
+describe('clearPersistedSession (logout storage cleanup)', () => {
   beforeEach(() => {
-    removeStored('session');
-    removeStored('session_login_time');
-    removeStored('session_last_active');
-    removeStored('last_session_email');
-    removeStored('session_expired_reason');
+    ['session', 'session_login_time', 'session_last_active', 'last_session_email', 'session_expired_reason']
+      .forEach(removeStored);
   });
 
-  it('correctly persists and removes authenticated user session', () => {
-    const activeSession: UserSession = {
-      accountType: 'individual',
-      contactMethod: 'taxpayer@example.ng',
-      isVerified: true,
-      fullName: 'Amina Bello',
-      isNINLinked: true,
-      nin: '***1234',
-    };
-
-    setStored('session', activeSession);
+  const seedActiveSession = (email: string) => {
+    setStored('session', { accountType: 'individual', contactMethod: email, isVerified: true, isNINLinked: false });
     setStored('session_login_time', Date.now());
     setStored('session_last_active', Date.now());
+  };
 
-    expect(getStored<UserSession>('session', {} as any).isVerified).toBe(true);
-    expect(getStored<number>('session_login_time', 0)).toBeGreaterThan(0);
+  it('removes the persisted session and activity timestamps', () => {
+    seedActiveSession('taxpayer@example.ng');
 
-    // Perform logout cleanup
-    removeStored('session');
-    removeStored('session_login_time');
-    removeStored('session_last_active');
+    clearPersistedSession({ contactMethod: 'taxpayer@example.ng' });
 
-    const defaultSession: UserSession = {
-      accountType: 'individual',
-      contactMethod: '',
-      isVerified: false,
-      isNINLinked: false,
-    };
-
-    expect(getStored<UserSession>('session', defaultSession).isVerified).toBe(false);
-    expect(getStored<number>('session_login_time', 0)).toBe(0);
-    expect(getStored<number>('session_last_active', 0)).toBe(0);
+    expect(getStored('session', null)).toBeNull();
+    expect(getStored('session_login_time', 0)).toBe(0);
+    expect(getStored('session_last_active', 0)).toBe(0);
   });
 
-  it('does not overwrite last_session_email when demo account logs out', () => {
-    // A prior real user had logged in
+  it('remembers a real user email for quick re-entry', () => {
+    seedActiveSession('founder@fintech.ng');
+
+    clearPersistedSession({ contactMethod: 'founder@fintech.ng' });
+
+    expect(getStored('last_session_email', '')).toBe('founder@fintech.ng');
+  });
+
+  it('does not overwrite the remembered email when the demo account signs out', () => {
     setStored('last_session_email', 'realuser@gmail.com');
+    seedActiveSession(DEMO_EMAIL);
 
-    const demoSession: UserSession = {
-      accountType: 'individual',
-      contactMethod: 'demo@diytax9ja.ng',
-      isVerified: true,
-      fullName: 'Demo Taxpayer',
-      isNINLinked: false,
-    };
+    clearPersistedSession({ contactMethod: DEMO_EMAIL });
 
-    // Logout logic: only store last_session_email if not demo
-    if (demoSession.contactMethod !== 'demo@diytax9ja.ng') {
-      setStored('last_session_email', demoSession.contactMethod);
-    }
-
-    expect(getStored<string>('last_session_email', '')).toBe('realuser@gmail.com');
+    expect(getStored('last_session_email', '')).toBe('realuser@gmail.com');
+    expect(getStored('session', null)).toBeNull();
   });
 
-  it('saves last_session_email for returning registered users upon logout', () => {
-    const regularSession: UserSession = {
-      accountType: 'business',
-      contactMethod: 'founder@fintech.ng',
-      isVerified: true,
-      fullName: 'Emeka Nwosu',
-      isNINLinked: true,
-    };
+  it('records an expiry reason only when one is given', () => {
+    clearPersistedSession({ contactMethod: 'a@b.ng' }, 'inactivity_5min');
+    expect(getStored('session_expired_reason', null)).toBe('inactivity_5min');
 
-    if (regularSession.contactMethod !== 'demo@diytax9ja.ng') {
-      setStored('last_session_email', regularSession.contactMethod);
-    }
-
-    expect(getStored<string>('last_session_email', '')).toBe('founder@fintech.ng');
+    clearPersistedSession({ contactMethod: 'a@b.ng' });
+    expect(getStored('session_expired_reason', null)).toBeNull();
   });
 });

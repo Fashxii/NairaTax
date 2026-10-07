@@ -8,7 +8,6 @@ import {
 import { AdminDashboardTab, AdminRole, AdminUser } from '../types';
 import CMSManager from './CMSManager';
 import { useAppContext } from '../AppShell';
-import { useNavigate } from 'react-router-dom';
 import { getAllUsers, registerUser, updateUser } from '../utils/authStore';
 
 // ── Seed data for demo ──────────────────────────────────────────────
@@ -75,8 +74,7 @@ const ROLE_META: Record<AdminRole, { label: string; color: string; bgColor: stri
 // ── Component ───────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { session, handleLogout, theme, onToggleTheme } = useAppContext();
-  const navigate = useNavigate();
-  const onLogout = () => { handleLogout(); };
+  const onLogout = handleLogout;
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('users');
   const getStaffUsers = (): AdminUser[] => {
     return getAllUsers()

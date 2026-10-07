@@ -11,6 +11,7 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import { removeStored, getStored, setStored } from '../utils/store';
 import { auth, fbSignOut } from '../lib/firebase';
 import { recordAuditLog } from '../utils/auditLogger';
+import { isDemoSession } from '../utils/demo';
 
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours absolute maximum
 export const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;   // 5 minutes of inactivity
@@ -21,6 +22,27 @@ const DEFAULT_SESSION: UserSession = {
   isVerified: false,
   isNINLinked: false,
 };
+
+/**
+ * Wipes all persisted auth state for the given session.
+ * Remembers the email for quick re-entry, except for the guest demo account.
+ */
+export function clearPersistedSession(session: Pick<UserSession, 'contactMethod'>, reason?: string): void {
+  if (session.contactMethod && !isDemoSession(session)) {
+    setStored('last_session_email', session.contactMethod);
+  }
+  if (reason) {
+    setStored('session_expired_reason', reason);
+  } else {
+    removeStored('session_expired_reason');
+  }
+  removeStored('session');
+  removeStored('session_login_time');
+  removeStored('session_last_active');
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('adminRole');
+  }
+}
 
 interface SessionContextValue {
   session: UserSession;
@@ -65,27 +87,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         severity: reason === 'inactivity_5min' ? 'WARN' : 'INFO',
         afterState: reason ? { reason } : undefined,
       });
-      // Save last email for quick re-entry on login screen (exclude demo account)
-      if (session.contactMethod !== 'demo@diytax9ja.ng') {
-        setStored('last_session_email', session.contactMethod);
-      }
     }
 
-    if (reason) {
-      setStored('session_expired_reason', reason);
-      setSessionExpiredReason(reason);
-    } else {
-      removeStored('session_expired_reason');
-      setSessionExpiredReason(null);
-    }
-
+    clearPersistedSession(session, reason);
+    setSessionExpiredReason(reason ?? null);
     setSession(DEFAULT_SESSION);
-    removeStored('session');
-    removeStored('session_login_time');
-    removeStored('session_last_active');
-    sessionStorage.removeItem('adminRole');
     fbSignOut(auth).catch(() => {});
-  }, [session.contactMethod, session.fullName, setSession]);
+  }, [session, setSession]);
 
   // Check absolute session expiry and inactivity on mount
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { ShieldCheck, CheckCircle2, Sun, Moon, LogOut } from 'lucide-react';
 import { UserSession } from '../../types';
+import { isDemoSession } from '../../utils/demo';
 
 interface SettingsTabProps {
   session: UserSession;
@@ -12,6 +13,7 @@ interface SettingsTabProps {
 }
 
 export default function SettingsTab({ session, accountMode, currentTaxpayerFullName, theme, onToggleTheme, onLogout }: SettingsTabProps) {
+  const isDemo = isDemoSession(session);
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -132,10 +134,10 @@ export default function SettingsTab({ session, accountMode, currentTaxpayerFullN
               <div className="p-4 bg-error/5 border border-error/20 rounded-xl flex items-center justify-between gap-4">
                 <div>
                   <p className="font-bold text-on-surface text-xs">
-                    {session.contactMethod === 'demo@diytax9ja.ng' ? 'Exit Guest Demo Mode' : 'Sign Out of Account'}
+                    {isDemo ? 'Exit Guest Demo Mode' : 'Sign Out of Account'}
                   </p>
                   <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                    {session.contactMethod === 'demo@diytax9ja.ng'
+                    {isDemo
                       ? 'End your demo exploration session and return to the main registration/login gateway.'
                       : 'Terminate your active authenticated session on this browser.'}
                   </p>
@@ -146,7 +148,7 @@ export default function SettingsTab({ session, accountMode, currentTaxpayerFullN
                   id="settings-signout-btn"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>{session.contactMethod === 'demo@diytax9ja.ng' ? 'Exit Demo' : 'Sign Out'}</span>
+                  <span>{isDemo ? 'Exit Demo' : 'Sign Out'}</span>
                 </button>
               </div>
             </div>

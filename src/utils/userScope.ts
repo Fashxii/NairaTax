@@ -12,12 +12,9 @@ import { useSession } from '../context/SessionContext';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { findUserByEmail } from './authStore';
 import type { UserSession } from '../types';
+import { DEMO_EMAIL, isDemoSession } from './demo';
 
-export const DEMO_EMAIL = 'demo@diytax9ja.ng';
-
-export function isDemoSession(session: Pick<UserSession, 'contactMethod'>): boolean {
-  return (session.contactMethod || '').toLowerCase() === DEMO_EMAIL;
-}
+export { DEMO_EMAIL, isDemoSession };
 
 /** Full registered name for display, with sensible non-fake fallbacks. */
 export function getDisplayName(session: Pick<UserSession, 'fullName' | 'contactMethod'>): string {

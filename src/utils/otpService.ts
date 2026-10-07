@@ -27,6 +27,32 @@ export function listenForDevOTP(cb: (code: string) => void): () => void {
 
 import { findUserByEmail, upsertUser } from './authStore';
 
+// ─── Local-dev OTP storage (used only when the API is unreachable in dev) ──
+const devOtpMemoryStore = new Map<string, string>();
+
+function setDevOtp(key: string, value: string) {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(key, value);
+  } else {
+    devOtpMemoryStore.set(key, value);
+  }
+}
+
+function getDevOtp(key: string): string | null {
+  if (typeof sessionStorage !== 'undefined') {
+    return sessionStorage.getItem(key);
+  }
+  return devOtpMemoryStore.get(key) || null;
+}
+
+function removeDevOtp(key: string) {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(key);
+  } else {
+    devOtpMemoryStore.delete(key);
+  }
+}
+
 export interface SendOTPResult {
   success: boolean;
   registered?: boolean;
@@ -101,31 +127,6 @@ export async function sendOTPEmail(
         message: 'No registered account found with this email. Please enter your full name to register.',
       };
     }
-
-const devOtpMemoryStore = new Map<string, string>();
-
-function setDevOtp(key: string, value: string) {
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(key, value);
-  } else {
-    devOtpMemoryStore.set(key, value);
-  }
-}
-
-function getDevOtp(key: string): string | null {
-  if (typeof sessionStorage !== 'undefined') {
-    return sessionStorage.getItem(key);
-  }
-  return devOtpMemoryStore.get(key) || null;
-}
-
-function removeDevOtp(key: string) {
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem(key);
-  } else {
-    devOtpMemoryStore.delete(key);
-  }
-}
 
     const resolvedUser = existingUser || upsertUser(cleanEmail, fullName || cleanEmail.split('@')[0], (accountType as any) || 'individual');
 
@@ -222,12 +223,12 @@ export async function verifyOTP(
 
     if (stored.code !== enteredCode.trim()) {
       stored.attempts += 1;
-      sessionStorage.setItem(`dev_otp_${key}`, JSON.stringify(stored));
+      setDevOtp(`dev_otp_${key}`, JSON.stringify(stored));
       const left = 5 - stored.attempts;
       return { valid: false, error: `Invalid code. ${left} attempt${left !== 1 ? 's' : ''} remaining.` };
     }
 
-    sessionStorage.removeItem(`dev_otp_${key}`);
+    removeDevOtp(`dev_otp_${key}`);
     return { valid: true };
   }
 }

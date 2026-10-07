@@ -15,7 +15,7 @@ import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router
 import { AnimatePresence } from 'motion/react';
 import { AccountType } from './types';
 import { useSession } from './context/SessionContext';
-import { isDemoSession } from './utils/userScope';
+import { isDemoSession, DEMO_EMAIL } from './utils/userScope';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 
@@ -70,7 +70,12 @@ export default function AppShell() {
 
   // Auto-redirect: if authenticated and on gateway, go to dashboard (unless user just logged out)
   useEffect(() => {
-    if (isAuthenticated && location.pathname === '/' && !isLoggingOutRef.current) {
+    if (!isAuthenticated) {
+      // Session is cleared — logout has fully applied, so re-arm the redirect.
+      isLoggingOutRef.current = false;
+      return;
+    }
+    if (location.pathname === '/' && !isLoggingOutRef.current) {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, location.pathname, navigate]);
@@ -144,16 +149,13 @@ export default function AppShell() {
     isLoggingOutRef.current = true;
     logout();
     navigate('/', { replace: true });
-    setTimeout(() => {
-      isLoggingOutRef.current = false;
-    }, 600);
   }, [logout, navigate]);
 
   const handleGuestDemo = (accountType: AccountType) => {
     setSession((prev) => ({
       ...prev,
       accountType,
-      contactMethod: 'demo@diytax9ja.ng',
+      contactMethod: DEMO_EMAIL,
       isVerified: true,
       fullName: 'Demo Taxpayer',
     }));
