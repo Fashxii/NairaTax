@@ -6,23 +6,26 @@ import {
   ArrowRight, ShieldCheck, Landmark, Sparkles, 
   Calendar, Camera, MessageSquare, ChevronDown, 
   ArrowUpRight, CheckCircle, Award, FileText,
-  Sun, Moon
+  Sun, Moon, Clock
 } from 'lucide-react';
 import { AccountType } from '../types';
 import { useContent } from '../context/ContentContext';
 import { estimateSavings } from '../utils/taxEngine';
 import { useAppContext } from '../AppShell';
+import { useSession } from '../context/SessionContext';
+import { getStored } from '../utils/store';
 import { validateContact, sanitize } from '../utils/validators';
-import { findUserByEmail, registerUser } from '../utils/authStore';
+import { findUserByEmail, upsertUser } from '../utils/authStore';
 import { sendOTPEmail } from '../utils/otpService';
 
 export default function Gateway() {
   const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemo, theme, onToggleTheme } = useAppContext();
+  const { sessionExpiredReason, clearExpiredReason } = useSession();
   const navigate = useNavigate();
   const onAdminLogin = () => navigate('/admin');
   const { content } = useContent();
   const [accountType, setAccountType] = useState<AccountType>('individual');
-  const [contactMethod, setContactMethod] = useState('');
+  const [contactMethod, setContactMethod] = useState(() => getStored<string>('last_session_email', ''));
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -34,7 +37,7 @@ export default function Gateway() {
   // Savings Calculator Slider State
   const [monthlyIncome, setMonthlyIncome] = useState<number>(850000);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = sanitize(contactMethod);
     const result = validateContact(cleaned);
@@ -45,52 +48,44 @@ export default function Gateway() {
 
     // If new user flow, require full name
     if (isNewUser && !fullName.trim()) {
-      setError('Please enter your full name to create an account.');
+      setError('Please enter your full name to complete registration.');
       return;
     }
 
     setError('');
     setIsLoading(true);
 
-    // Check if user exists
-    const existingUser = findUserByEmail(cleaned);
+    // Look up local user if already in local storage
+    const localUser = findUserByEmail(cleaned);
+    const nameToSend = isNewUser ? fullName.trim() : (localUser?.fullName || undefined);
+    const accountTypeToSend = localUser?.accountType || accountType;
 
-    if (!existingUser && !isNewUser) {
-      // User not found — prompt for registration
-      setIsNewUser(true);
-      setIsLoading(false);
-      return;
-    }
+    try {
+      const res = await sendOTPEmail(cleaned, nameToSend, accountTypeToSend);
 
-    if (!existingUser && isNewUser) {
-      // Register the new user
-      try {
-        registerUser(cleaned, fullName.trim(), accountType);
-      } catch (err: any) {
-        setError(err.message || 'Registration failed.');
+      if (res.needsRegistration) {
+        setIsNewUser(true);
         setIsLoading(false);
+        setError('');
         return;
       }
-    }
 
-    // Check if user is active
-    const user = findUserByEmail(cleaned);
-    if (user && !user.isActive) {
-      setError('This account has been suspended. Contact your administrator.');
+      if (res.user?.fullName) {
+        upsertUser(
+          cleaned,
+          res.user.fullName,
+          (res.user.accountType as any) || accountType,
+          (res.user.role as any) || 'taxpayer'
+        );
+      }
+
+      clearExpiredReason();
       setIsLoading(false);
-      return;
+      onNext((res.user?.accountType as any) || accountTypeToSend, cleaned);
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || 'Failed to send verification code. Please try again.');
     }
-
-    // Send OTP via server-backed OTP service
-    sendOTPEmail(cleaned, isNewUser ? fullName.trim() : undefined, accountType)
-      .then(() => {
-        setIsLoading(false);
-        onNext(accountType, cleaned);
-      })
-      .catch((err: any) => {
-        setIsLoading(false);
-        setError(err?.message || 'Failed to send verification code. Please try again.');
-      });
   };
 
   // Tax calculations based on slider values — uses shared engine
@@ -286,6 +281,18 @@ export default function Gateway() {
                 <h3 className="text-xl font-bold tracking-tight text-primary-container">{content.gateway.portalTitle}</h3>
                 <p className="text-xs text-on-surface-variant mt-1">{content.gateway.portalSubtitle}</p>
               </div>
+
+              {sessionExpiredReason === 'inactivity_5min' && (
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2.5 text-left">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-800">Session Expired (5-Min Inactivity)</p>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
+                      Your session was automatically locked for financial privacy. Re-enter your email to receive a fresh verification code and continue.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Segmented control for Individual vs Business */}
               <div className="bg-surface-container p-1 rounded-xl flex w-full border border-outline-variant/30">

@@ -17,14 +17,17 @@ const STAFF_ROLES: AdminRole[] = ['super_admin', 'content_manager', 'reviewer'];
  * Function proves email ownership and returns the account's role, which is
  * resolved server-side (bootstrap super admins + users/{email}.role).
  */
+import { getStored } from '../utils/store';
+import { Clock } from 'lucide-react';
+
 export default function AdminGateway() {
   const { theme, onToggleTheme } = useAppContext();
-  const { setSession } = useSession();
+  const { sessionExpiredReason, clearExpiredReason, setSession } = useSession();
   const navigate = useNavigate();
   const onBackToUser = () => navigate('/');
 
   const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => getStored<string>('last_session_email', ''));
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +43,12 @@ export default function AdminGateway() {
     }
     setIsLoading(true);
     try {
-      await sendOTPEmail(cleanEmail);
+      const res = await sendOTPEmail(cleanEmail);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      clearExpiredReason();
       setStep('code');
     } catch (err: any) {
       setError(err?.message || 'Could not send a sign-in code. Please try again.');
@@ -136,6 +144,18 @@ export default function AdminGateway() {
                 : <>Enter the 6-digit code sent to <span className="font-bold text-on-surface">{cleanEmail}</span>.</>}
             </p>
           </div>
+
+          {sessionExpiredReason === 'inactivity_5min' && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2.5 text-left">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-800">Staff Session Expired</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
+                  Your session was closed after 5 minutes of inactivity for administrative security. Re-enter your email to receive a code.
+                </p>
+              </div>
+            </div>
+          )}
 
           {step === 'email' ? (
             <form onSubmit={handleSendCode} className="space-y-4">

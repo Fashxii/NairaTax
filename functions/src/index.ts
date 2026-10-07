@@ -164,10 +164,23 @@ export const sendOTP = functions.https.onRequest(
         await rateLimitRef.set({ windowStart: now, count: 1 });
       }
 
-      // Optionally register or confirm user exists in Firestore
+      // Check if user exists in Firestore users table
       const userRef = db.collection("users").doc(cleanEmail);
       const userDoc = await userRef.get();
+      const userData = userDoc.data() || {};
 
+      // If user does not exist in users table and no fullName was supplied, prompt for registration
+      if (!userDoc.exists && !fullName) {
+        res.status(200).json({
+          success: false,
+          registered: false,
+          needsRegistration: true,
+          message: "No registered account found with this email. Please enter your full name to register.",
+        });
+        return;
+      }
+
+      // If user does not exist but fullName was provided, register them in users table
       if (!userDoc.exists && fullName) {
         await userRef.set({
           email: cleanEmail,
@@ -178,12 +191,12 @@ export const sendOTP = functions.https.onRequest(
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           lastLogin: null,
         });
-      } else if (userDoc.exists && !userDoc.data()?.fullName && fullName) {
+      } else if (userDoc.exists && !userData.fullName && fullName) {
         // Backfill a missing name; never overwrite an existing one.
         await userRef.update({ fullName: fullName.trim() });
       }
 
-      if (userDoc.exists && userDoc.data()?.isActive === false) {
+      if (userDoc.exists && userData.isActive === false) {
         res.status(403).json({
           error:
             "This account has been suspended. Please contact your administrator.",
@@ -229,9 +242,31 @@ export const sendOTP = functions.https.onRequest(
 
       functions.logger.info(`[OTP] Code dispatched to ${cleanEmail}`);
 
+      const resolvedFullName = userDoc.exists
+        ? (userData.fullName || (fullName ? fullName.trim() : ""))
+        : (fullName ? fullName.trim() : "");
+      const resolvedAccountType = userDoc.exists
+        ? (userData.accountType || accountType || "individual")
+        : (accountType || "individual");
+      const resolvedRole = userDoc.exists
+        ? (userData.role || "taxpayer")
+        : "taxpayer";
+      const resolvedIsNINLinked = userDoc.exists
+        ? (userData.isNINLinked === true)
+        : false;
+
       res.status(200).json({
         success: true,
-        message: "Verification code sent to your email.",
+        registered: true,
+        message: "Verification code sent to your registered email.",
+        user: {
+          email: cleanEmail,
+          fullName: resolvedFullName,
+          accountType: resolvedAccountType,
+          role: resolvedRole,
+          isNINLinked: resolvedIsNINLinked,
+          nin: userData.nin || undefined,
+        },
       });
     } catch (err: any) {
       functions.logger.error("[OTP] sendOTP error:", err);

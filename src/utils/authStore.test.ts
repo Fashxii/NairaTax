@@ -8,6 +8,7 @@ import {
   verifyPassword,
   hashPassword,
   registerUser,
+  upsertUser,
   getAllUsers,
   purgeLegacySeedAdmins,
 } from './authStore';
@@ -45,5 +46,18 @@ describe('authStore', () => {
 
   it('never accepts a password when no hash is stored', async () => {
     expect(await verifyPassword('anything', '')).toBe(false);
+  });
+
+  it('upserts new user and updates existing user credentials without throwing duplicate error', () => {
+    const created = upsertUser('returning@example.com', 'Samson Ade', 'individual');
+    expect(created.email).toBe('returning@example.com');
+    expect(created.fullName).toBe('Samson Ade');
+
+    // Second upsert should update existing user without failing
+    const updated = upsertUser('returning@example.com', 'Samson Adebayo', 'business');
+    expect(updated.id).toBe(created.id);
+    expect(updated.fullName).toBe('Samson Adebayo');
+    expect(updated.accountType).toBe('business');
+    expect(getAllUsers().filter((u) => u.email === 'returning@example.com').length).toBe(1);
   });
 });

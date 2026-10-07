@@ -4,7 +4,7 @@ import { ArrowLeft, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../AppShell';
 import { verifyOTP, sendOTPEmail, listenForDevOTP } from '../utils/otpService';
-import { findUserByEmail } from '../utils/authStore';
+import { findUserByEmail, upsertUser } from '../utils/authStore';
 
 export default function Verification() {
   const { session, handleVerifySuccess: onVerify } = useAppContext();
@@ -109,8 +109,12 @@ export default function Verification() {
       const isNINLinked = result.user?.isNINLinked;
       const nin = result.user?.nin;
 
+      if (fullName) {
+        upsertUser(contactMethod, fullName, accountType || 'individual', result.user?.role || 'taxpayer');
+      }
+
       onVerify(fullName, accountType, isNINLinked, nin);
-    } catch (err: any) {
+    } catch {
       setIsVerifying(false);
       setError('Verification service error. Please try again.');
     }
