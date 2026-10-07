@@ -25,26 +25,62 @@ export function listenForDevOTP(cb: (code: string) => void): () => void {
   return () => window.removeEventListener(OTP_DEV_EVENT, handler);
 }
 
-// ─── Send OTP ─────────────────────────────────────────────────────────
+import { findUserByEmail, upsertUser } from './authStore';
+
+export interface SendOTPResult {
+  success: boolean;
+  registered?: boolean;
+  needsRegistration?: boolean;
+  isNewRegistration?: boolean;
+  message?: string;
+  error?: string;
+  user?: {
+    email: string;
+    fullName?: string;
+    accountType?: string;
+    role?: string;
+    isNINLinked?: boolean;
+    nin?: string;
+  };
+}
 
 export async function sendOTPEmail(
   email: string,
   fullName?: string,
   accountType?: string
-): Promise<boolean> {
+): Promise<SendOTPResult> {
+  const cleanEmail = email.toLowerCase().trim();
+
   try {
     const res = await fetch('/api/auth/otp/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, fullName, accountType }),
+      body: JSON.stringify({ email: cleanEmail, fullName, accountType }),
     });
 
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       throw new Error(data.error || 'Failed to dispatch verification code.');
     }
 
-    return true;
+    if (data.user?.fullName) {
+      upsertUser(
+        cleanEmail,
+        data.user.fullName,
+        (data.user.accountType as any) || 'individual',
+        (data.user.role as any) || 'taxpayer'
+      );
+    }
+
+    return {
+      success: data.success !== false,
+      registered: data.registered ?? true,
+      needsRegistration: data.needsRegistration ?? false,
+      isNewRegistration: data.isNewRegistration ?? false,
+      message: data.message,
+      user: data.user,
+    };
   } catch (err: any) {
     // In production, never fake a dispatch — surface the real error.
     if (!import.meta.env.DEV) {
@@ -53,30 +89,77 @@ export async function sendOTPEmail(
     }
 
     // ── Local Dev Fallback (npm run dev only) ───────────────────────
-    // Server is not running (pure Vite dev server). Store OTP locally
-    // and display it on-screen so you can test without a real email.
     console.warn('[OTP] Running in local dev mode — no server available:', err.message);
 
-    const key = email.toLowerCase().trim();
+    const existingUser = findUserByEmail(cleanEmail);
+
+    if (!existingUser && !fullName) {
+      return {
+        success: false,
+        registered: false,
+        needsRegistration: true,
+        message: 'No registered account found with this email. Please enter your full name to register.',
+      };
+    }
+
+const devOtpMemoryStore = new Map<string, string>();
+
+function setDevOtp(key: string, value: string) {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(key, value);
+  } else {
+    devOtpMemoryStore.set(key, value);
+  }
+}
+
+function getDevOtp(key: string): string | null {
+  if (typeof sessionStorage !== 'undefined') {
+    return sessionStorage.getItem(key);
+  }
+  return devOtpMemoryStore.get(key) || null;
+}
+
+function removeDevOtp(key: string) {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(key);
+  } else {
+    devOtpMemoryStore.delete(key);
+  }
+}
+
+    const resolvedUser = existingUser || upsertUser(cleanEmail, fullName || cleanEmail.split('@')[0], (accountType as any) || 'individual');
+
     const devCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    sessionStorage.setItem(`dev_otp_${key}`, JSON.stringify({
+    setDevOtp(`dev_otp_${cleanEmail}`, JSON.stringify({
       code: devCode,
       expiresAt: Date.now() + 5 * 60 * 1000,
       attempts: 0,
     }));
 
     // Broadcast so Verification page can display the code on screen
-    window.dispatchEvent(new CustomEvent<string>(OTP_DEV_EVENT, { detail: devCode }));
+    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<string>(OTP_DEV_EVENT, { detail: devCode }));
+    }
 
     console.log(`\n══════════════════════════════════════════`);
     console.log(`  DIYtax9ja OTP (Local Dev Mode)`);
-    console.log(`  Email : ${email}`);
+    console.log(`  Email : ${cleanEmail}`);
+    console.log(`  Name  : ${resolvedUser.fullName}`);
     console.log(`  Code  : ${devCode}`);
     console.log(`  Expires in 5 minutes`);
     console.log(`══════════════════════════════════════════\n`);
 
-    return true;
+    return {
+      success: true,
+      registered: true,
+      user: {
+        email: cleanEmail,
+        fullName: resolvedUser.fullName,
+        accountType: resolvedUser.accountType,
+        role: resolvedUser.role,
+      },
+    };
   }
 }
 
@@ -119,7 +202,7 @@ export async function verifyOTP(
     console.warn('[OTP] Running in local dev mode — verifying via sessionStorage:', err.message);
 
     const key = email.toLowerCase().trim();
-    const raw = sessionStorage.getItem(`dev_otp_${key}`);
+    const raw = getDevOtp(`dev_otp_${key}`);
 
     if (!raw) {
       return { valid: false, error: 'No verification code found. Please request a new one.' };
@@ -128,12 +211,12 @@ export async function verifyOTP(
     const stored = JSON.parse(raw);
 
     if (Date.now() > stored.expiresAt) {
-      sessionStorage.removeItem(`dev_otp_${key}`);
+      removeDevOtp(`dev_otp_${key}`);
       return { valid: false, error: 'Verification code has expired. Please request a new one.' };
     }
 
     if (stored.attempts >= 5) {
-      sessionStorage.removeItem(`dev_otp_${key}`);
+      removeDevOtp(`dev_otp_${key}`);
       return { valid: false, error: 'Too many failed attempts. Please request a new code.' };
     }
 

@@ -107,6 +107,28 @@ export function updateUser(id: string, updates: Partial<Omit<RegisteredUser, 'id
   return updated;
 }
 
+/**
+ * Upsert a user from server record (creates if not existing, updates if exists).
+ * Never throws duplicate email error.
+ */
+export function upsertUser(
+  email: string,
+  fullName: string,
+  accountType: AccountType = 'individual',
+  role: UserRole = 'taxpayer'
+): RegisteredUser {
+  const existing = findUserByEmail(email);
+  if (existing) {
+    const updated = updateUser(existing.id, {
+      fullName: (fullName || '').trim() || existing.fullName,
+      accountType: accountType || existing.accountType,
+      role: role || existing.role,
+    });
+    return updated || existing;
+  }
+  return registerUser(email, fullName, accountType, role);
+}
+
 /** Record a login timestamp for a user */
 export function recordLogin(id: string): void {
   updateUser(id, { lastLogin: new Date().toISOString() });
