@@ -38,7 +38,6 @@ export default function SuperAdminDashboard() {
 
   const onLogout = () => {
     handleLogout();
-    navigate('/');
   };
 
   return (

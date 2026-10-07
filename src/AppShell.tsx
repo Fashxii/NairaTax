@@ -10,7 +10,7 @@
  * the authStore registration during the real login flow.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 import { AccountType } from './types';
@@ -66,9 +66,11 @@ export default function AppShell() {
     }
   }, [theme]);
 
-  // Auto-redirect: if authenticated and on gateway, go to dashboard
+  const isLoggingOutRef = useRef(false);
+
+  // Auto-redirect: if authenticated and on gateway, go to dashboard (unless user just logged out)
   useEffect(() => {
-    if (isAuthenticated && location.pathname === '/') {
+    if (isAuthenticated && location.pathname === '/' && !isLoggingOutRef.current) {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, location.pathname, navigate]);
@@ -138,10 +140,14 @@ export default function AppShell() {
     navigate('/compliance');
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
+    isLoggingOutRef.current = true;
     logout();
-    navigate('/');
-  };
+    navigate('/', { replace: true });
+    setTimeout(() => {
+      isLoggingOutRef.current = false;
+    }, 600);
+  }, [logout, navigate]);
 
   const handleGuestDemo = (accountType: AccountType) => {
     setSession((prev) => ({

@@ -76,7 +76,7 @@ const ROLE_META: Record<AdminRole, { label: string; color: string; bgColor: stri
 export default function AdminDashboard() {
   const { session, handleLogout, theme, onToggleTheme } = useAppContext();
   const navigate = useNavigate();
-  const onLogout = () => { handleLogout(); navigate('/'); };
+  const onLogout = () => { handleLogout(); };
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('users');
   const getStaffUsers = (): AdminUser[] => {
     return getAllUsers()
@@ -296,8 +296,18 @@ export default function AdminDashboard() {
             <button
               onClick={onToggleTheme}
               className="p-2 rounded-lg hover:bg-surface-container-low border border-outline-variant text-on-surface-variant transition-all cursor-pointer"
+              title="Toggle theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+            </button>
+            <button
+              onClick={onLogout}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider text-error bg-error/5 hover:bg-error/15 border border-error/20 transition-all cursor-pointer"
+              title="Sign Out of Admin Portal"
+              id="admin-header-logout-btn"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>

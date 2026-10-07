@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { motion } from 'motion/react';
 import { 
-  Info, FileText, Landmark, ChevronRight 
+  Info, FileText, Landmark, ChevronRight, LogOut 
 } from 'lucide-react';
 import { UserSession } from '../../types';
 import { useContent } from '../../context/ContentContext';
@@ -47,6 +47,7 @@ interface OverviewTabProps {
   estimatedSavings: number;
   filingStreak: number;
   isDemo?: boolean;
+  onLogout?: () => void;
   onStartFiling: () => void;
   onViewLedger: () => void;
   onAddTransactions?: (txs: SyncTransaction[]) => void;
@@ -67,6 +68,7 @@ const OverviewTab = memo(function OverviewTab({
   estimatedSavings,
   filingStreak,
   isDemo = false,
+  onLogout,
   onStartFiling,
   onViewLedger,
   onAddTransactions,
@@ -91,11 +93,25 @@ const OverviewTab = memo(function OverviewTab({
           </span>
         </div>
         
-        <div className="inline-flex items-center mt-3 px-3.5 py-1 rounded-full bg-[#013220]/10 border border-[#013220]/25">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#013220] mr-2"></div>
-          <span className="text-[10px] font-bold text-primary-container uppercase tracking-widest">
-            {session.isNINLinked ? 'Status: NIN Linked' : 'Status: Identity Unlinked'}
-          </span>
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-[#013220]/10 border border-[#013220]/25">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#013220] mr-2"></div>
+            <span className="text-[10px] font-bold text-primary-container uppercase tracking-widest">
+              {session.isNINLinked ? 'Status: NIN Linked' : 'Status: Identity Unlinked'}
+            </span>
+          </div>
+
+          {isDemo && onLogout && (
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-error/10 hover:bg-error/20 border border-error/30 text-error text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              title="Exit guest demo mode and return to sign in"
+              id="overview-exit-demo-badge"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>Exit Demo Mode</span>
+            </button>
+          )}
         </div>
       </div>
 
