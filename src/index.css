@@ -18,6 +18,15 @@
   --color-on-surface-variant: #414943;
   --color-outline: #717973;
   --color-outline-variant: #c1c8c2;
+
+  /* Tokens referenced by components that were previously undefined */
+  --color-on-primary: #ffffff;
+  --color-primary-fixed: #bcedd1;
+  --color-secondary-container: #d3e8dc;
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
 }
 
 /* High-Contrast Twilight Dark Mode Overrides */
@@ -36,6 +45,13 @@
   --color-on-surface-variant: #cbd5e1;
   --color-outline: #64748b;
   --color-outline-variant: #2d3a31;
+  --color-on-primary: #ffffff;
+  --color-primary-fixed: #1f5a3f;
+  --color-secondary-container: #1d2721;
+  --color-surface-container-high: #232e28;
+  --color-surface-container-highest: #2a3730;
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
   
   color-scheme: dark;
 }

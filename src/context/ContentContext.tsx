@@ -58,10 +58,33 @@ interface ContentContextType {
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
+/** Merge saved CMS content over defaults so missing or blank fields fall back. */
+export function mergeContent(saved: unknown): AppContent {
+  const merged: AppContent = {
+    gateway: { ...defaultContent.gateway },
+    dashboard: { ...defaultContent.dashboard },
+  };
+  if (!saved || typeof saved !== 'object') return merged;
+  (Object.keys(merged) as (keyof AppContent)[]).forEach((section) => {
+    const src = (saved as Record<string, unknown>)[section];
+    if (!src || typeof src !== 'object') return;
+    const target = merged[section] as Record<string, string>;
+    Object.keys(target).forEach((key) => {
+      const value = (src as Record<string, unknown>)[key];
+      if (typeof value === 'string' && value.trim() !== '') target[key] = value;
+    });
+  });
+  return merged;
+}
+
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [content, setContent] = useState<AppContent>(() => {
-    const saved = localStorage.getItem('diyTax9ja_cms_content');
-    return saved ? JSON.parse(saved) : defaultContent;
+    try {
+      const saved = localStorage.getItem('diyTax9ja_cms_content');
+      return mergeContent(saved ? JSON.parse(saved) : null);
+    } catch {
+      return mergeContent(null);
+    }
   });
 
   useEffect(() => {
