@@ -347,8 +347,8 @@ export const verifyOTP = functions.https.onRequest(
         return;
       }
 
-      // Success — delete consumed token
-      await tokenRef.delete();
+      // Code matched. The token is deleted only after the custom token is
+      // minted, so a server-side failure doesn't burn the user's code.
 
       // Resolve role server-side and update last login time
       const userRef = db.collection("users").doc(cleanEmail);
@@ -404,6 +404,9 @@ export const verifyOTP = functions.https.onRequest(
         role,
         email: cleanEmail,
       });
+
+      // Login fully succeeded — consume the one-time code.
+      await tokenRef.delete();
 
       res.status(200).json({
         success: true,
