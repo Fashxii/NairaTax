@@ -135,6 +135,31 @@ export const sendOTP = functions.https.onRequest(
       }
 
       const cleanEmail = email.toLowerCase().trim();
+      const cleanName = typeof fullName === "string" ? fullName.trim().slice(0, 120) : "";
+      const cleanAccountType = accountType === "business" ? "business" : "individual";
+
+      // Check if user exists in Firestore users table. This runs before the
+      // rate limit so the registration probe doesn't consume a send attempt.
+      const userRef = db.collection("users").doc(cleanEmail);
+      const userDoc = await userRef.get();
+      const userData = userDoc.data() || {};
+      const isNewRegistration = !userDoc.exists;
+
+      // If user does not exist in users table and no fullName was supplied, prompt for registration
+      if (isNewRegistration && !cleanName) {
+        res.status(200).json({
+          success: false,
+          registered: false,
+          needsRegistration: true,
+          message: "No registered account found with this email. Please enter your full name to register.",
+        });
+        return;
+      }
+
+      if (isNewRegistration && cleanName.length < 2) {
+        res.status(400).json({ error: "Please enter your full name to register." });
+        return;
+      }
 
       // Rate limit: max 3 OTP requests per 10 minutes per email
       const rateLimitRef = db.collection("otp_rate_limits").doc(cleanEmail);
@@ -164,36 +189,20 @@ export const sendOTP = functions.https.onRequest(
         await rateLimitRef.set({ windowStart: now, count: 1 });
       }
 
-      // Check if user exists in Firestore users table
-      const userRef = db.collection("users").doc(cleanEmail);
-      const userDoc = await userRef.get();
-      const userData = userDoc.data() || {};
-
-      // If user does not exist in users table and no fullName was supplied, prompt for registration
-      if (!userDoc.exists && !fullName) {
-        res.status(200).json({
-          success: false,
-          registered: false,
-          needsRegistration: true,
-          message: "No registered account found with this email. Please enter your full name to register.",
-        });
-        return;
-      }
-
-      // If user does not exist but fullName was provided, register them in users table
-      if (!userDoc.exists && fullName) {
+      // New sign-up: create the account in the users table
+      if (isNewRegistration) {
         await userRef.set({
           email: cleanEmail,
-          fullName: fullName.trim(),
-          accountType: accountType || "individual",
+          fullName: cleanName,
+          accountType: cleanAccountType,
           role: "taxpayer",
           isActive: true,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           lastLogin: null,
         });
-      } else if (userDoc.exists && !userData.fullName && fullName) {
+      } else if (!userData.fullName && cleanName) {
         // Backfill a missing name; never overwrite an existing one.
-        await userRef.update({ fullName: fullName.trim() });
+        await userRef.update({ fullName: cleanName });
       }
 
       if (userDoc.exists && userData.isActive === false) {
@@ -243,11 +252,11 @@ export const sendOTP = functions.https.onRequest(
       functions.logger.info(`[OTP] Code dispatched to ${cleanEmail}`);
 
       const resolvedFullName = userDoc.exists
-        ? (userData.fullName || (fullName ? fullName.trim() : ""))
-        : (fullName ? fullName.trim() : "");
+        ? (userData.fullName || cleanName)
+        : cleanName;
       const resolvedAccountType = userDoc.exists
-        ? (userData.accountType || accountType || "individual")
-        : (accountType || "individual");
+        ? (userData.accountType || cleanAccountType)
+        : cleanAccountType;
       const resolvedRole = userDoc.exists
         ? (userData.role || "taxpayer")
         : "taxpayer";
@@ -258,6 +267,7 @@ export const sendOTP = functions.https.onRequest(
       res.status(200).json({
         success: true,
         registered: true,
+        isNewRegistration,
         message: "Verification code sent to your registered email.",
         user: {
           email: cleanEmail,
