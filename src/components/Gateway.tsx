@@ -30,9 +30,22 @@ export default function Gateway() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Registration flow state
-  const [isNewUser, setIsNewUser] = useState(false);
+  // Sign-in vs new-account registration mode
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const isNewUser = authMode === 'signup';
   const [fullName, setFullName] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const switchAuthMode = (mode: 'signin' | 'signup') => {
+    setAuthMode(mode);
+    setError('');
+    setNotice('');
+  };
+
+  const openSignUp = () => {
+    switchAuthMode('signup');
+    handleSmoothScroll('auth-portal');
+  };
 
   // Savings Calculator Slider State
   const [monthlyIncome, setMonthlyIncome] = useState<number>(850000);
@@ -46,27 +59,31 @@ export default function Gateway() {
       return;
     }
 
-    // If new user flow, require full name
-    if (isNewUser && !fullName.trim()) {
-      setError('Please enter your full name to complete registration.');
+    // New accounts require a name
+    if (isNewUser && fullName.trim().length < 2) {
+      setError(accountType === 'business'
+        ? 'Please enter your registered business name.'
+        : 'Please enter your full legal name.');
       return;
     }
 
     setError('');
+    setNotice('');
     setIsLoading(true);
 
     // Look up local user if already in local storage
     const localUser = findUserByEmail(cleaned);
     const nameToSend = isNewUser ? fullName.trim() : (localUser?.fullName || undefined);
-    const accountTypeToSend = localUser?.accountType || accountType;
+    const accountTypeToSend = isNewUser ? accountType : (localUser?.accountType || accountType);
 
     try {
       const res = await sendOTPEmail(cleaned, nameToSend, accountTypeToSend);
 
       if (res.needsRegistration) {
-        setIsNewUser(true);
+        setAuthMode('signup');
         setIsLoading(false);
         setError('');
+        setNotice('No account found for this email. Enter your name below to create one.');
         return;
       }
 
@@ -165,6 +182,13 @@ export default function Gateway() {
             >
               <ShieldCheck className="w-3.5 h-3.5 text-accent-green mr-1" />
               <span>Staff Portal</span>
+            </button>
+            <button 
+              id="header-create-account"
+              onClick={openSignUp}
+              className="hidden sm:flex items-center text-xs font-bold text-[#013220] bg-accent-green/20 hover:bg-accent-green/30 px-3.5 py-2 rounded-lg border border-accent-green/40 transition-all cursor-pointer"
+            >
+              Create Account
             </button>
             <button 
               onClick={() => handleSmoothScroll('auth-portal')}
@@ -278,8 +302,35 @@ export default function Gateway() {
               className="w-full bg-white p-8 rounded-2xl border border-outline-variant shadow-sm space-y-6 text-left"
             >
               <div>
-                <h3 className="text-xl font-bold tracking-tight text-primary-container">{content.gateway.portalTitle}</h3>
-                <p className="text-xs text-on-surface-variant mt-1">{content.gateway.portalSubtitle}</p>
+                <h3 className="text-xl font-bold tracking-tight text-primary-container">
+                  {isNewUser ? 'Create Your Account' : content.gateway.portalTitle}
+                </h3>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  {isNewUser
+                    ? 'Register once with your email. We\'ll send a one-time code to confirm it.'
+                    : content.gateway.portalSubtitle}
+                </p>
+              </div>
+
+              {/* Sign in vs Create account */}
+              <div className="grid grid-cols-2 border-b border-outline-variant" role="tablist">
+                {(['signin', 'signup'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    id={mode === 'signin' ? 'tab-sign-in' : 'tab-create-account'}
+                    type="button"
+                    role="tab"
+                    aria-selected={authMode === mode}
+                    onClick={() => switchAuthMode(mode)}
+                    className={`pb-2.5 text-sm font-bold transition-all cursor-pointer border-b-2 -mb-px ${
+                      authMode === mode
+                        ? 'border-[#013220] text-[#013220]'
+                        : 'border-transparent text-on-surface-variant hover:text-primary-container'
+                    }`}
+                  >
+                    {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                  </button>
+                ))}
               </div>
 
               {sessionExpiredReason === 'inactivity_5min' && (
@@ -321,21 +372,24 @@ export default function Gateway() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {notice && (
+                  <p className="text-xs font-medium text-emerald-900 bg-emerald-50/70 border border-emerald-200 rounded-lg px-3 py-2">{notice}</p>
+                )}
                 {isNewUser && (
-                  <div className="space-y-1.5 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
-                    <p className="text-xs font-bold text-emerald-900">New Account Registration</p>
+                  <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider block" htmlFor="full-name-landing">
-                      Full Legal Name / Business Registered Name
+                      {accountType === 'individual' ? 'Full Legal Name' : 'Registered Business Name'}
                     </label>
                     <input
                       id="full-name-landing"
                       type="text"
+                      autoComplete={accountType === 'individual' ? 'name' : 'organization'}
                       value={fullName}
                       onChange={(e) => {
                         setFullName(e.target.value);
                         if (error) setError('');
                       }}
-                      className="w-full h-10 px-3 py-2 bg-white border border-outline rounded-lg text-on-surface text-xs focus:outline-none focus:border-[#013220]"
+                      className="w-full h-12 px-4 py-2 bg-background border border-outline rounded-xl text-on-surface text-sm placeholder:text-on-surface-variant/40 focus:outline-none focus:border-[#013220] focus:ring-1 focus:ring-[#013220] transition-all font-semibold"
                       placeholder={accountType === 'individual' ? 'e.g. Adebayo Ogunlade' : 'e.g. Apex Ventures Ltd'}
                       autoFocus
                     />
@@ -371,11 +425,23 @@ export default function Gateway() {
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>{content.gateway.portalCtaText}</span>
+                      <span>{isNewUser ? 'Create Account & Send Code' : content.gateway.portalCtaText}</span>
                       <ArrowRight className="w-4 h-4 text-accent-green" />
                     </>
                   )}
                 </button>
+
+                <p className="text-xs text-center text-on-surface-variant">
+                  {isNewUser ? 'Already registered? ' : 'New to DIYtax9ja? '}
+                  <button
+                    id="switch-auth-mode"
+                    type="button"
+                    onClick={() => switchAuthMode(isNewUser ? 'signin' : 'signup')}
+                    className="font-bold text-[#013220] hover:underline cursor-pointer"
+                  >
+                    {isNewUser ? 'Sign in' : 'Create an account'}
+                  </button>
+                </p>
               </form>
 
               <div className="pt-4 border-t border-outline-variant text-center space-y-2">
