@@ -60,6 +60,11 @@ export interface CITInput {
   lossesCarriedForward: number;
   /** Whether the company operates in a tech-levy sector */
   isTechLevySector: boolean;
+  /**
+   * Admin-approved override of the turnover classification:
+   * 'small' forces the 0% tier, 'standard' forces the 30% tier.
+   */
+  bracketOverride?: 'auto' | 'small' | 'standard';
 }
 
 export interface CITResult {
@@ -82,6 +87,8 @@ export interface CITResult {
   techLevy: number;
   totalTaxPayable: number;
   effectiveRate: number;
+  /** True when the tier came from an admin override rather than turnover. */
+  isBracketOverridden: boolean;
 }
 
 // ─── CIT Calculation ─────────────────────────────────────────────────────────
@@ -99,10 +106,22 @@ export function classifyCompany(grossTurnover: number): typeof CIT_TIERS[number]
 }
 
 /**
+ * Resolve the tier, honouring an admin bracket override when present.
+ */
+export function resolveCompanyTier(
+  grossTurnover: number,
+  bracketOverride: CITInput['bracketOverride'] = 'auto'
+): typeof CIT_TIERS[number] {
+  if (bracketOverride === 'small') return CIT_TIERS[0];
+  if (bracketOverride === 'standard') return CIT_TIERS[CIT_TIERS.length - 1];
+  return classifyCompany(grossTurnover);
+}
+
+/**
  * Full CIT calculation including minimum tax, EDT, and tech levy.
  */
 export function calculateCIT(input: CITInput): CITResult {
-  const tier = classifyCompany(input.grossTurnover);
+  const tier = resolveCompanyTier(input.grossTurnover, input.bracketOverride);
 
   // Assessable Profit = Revenue - Allowable Expenses - Capital Allowances
   const assessableProfit = Math.max(
@@ -159,5 +178,6 @@ export function calculateCIT(input: CITInput): CITResult {
     techLevy,
     totalTaxPayable,
     effectiveRate,
+    isBracketOverridden: !!input.bracketOverride && input.bracketOverride !== 'auto',
   };
 }

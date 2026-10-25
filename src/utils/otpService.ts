@@ -170,6 +170,13 @@ export async function verifyOTP(
   email: string,
   enteredCode: string
 ): Promise<{ valid: boolean; error?: string; user?: any; customToken?: string }> {
+  // Local dev: if sendOTPEmail fell back to a dev code (server unreachable),
+  // verify against it directly. A failed Vite proxy returns HTTP 500 rather
+  // than throwing, so the catch-based fallback below would never run.
+  if (import.meta.env.DEV && getDevOtp(`dev_otp_${email.toLowerCase().trim()}`)) {
+    return verifyDevOtp(email, enteredCode);
+  }
+
   try {
     const res = await fetch('/api/auth/otp/verify', {
       method: 'POST',
@@ -201,34 +208,37 @@ export async function verifyOTP(
 
     // ── Local Dev Fallback (npm run dev only) ───────────────────────
     console.warn('[OTP] Running in local dev mode — verifying via sessionStorage:', err.message);
-
-    const key = email.toLowerCase().trim();
-    const raw = getDevOtp(`dev_otp_${key}`);
-
-    if (!raw) {
-      return { valid: false, error: 'No verification code found. Please request a new one.' };
-    }
-
-    const stored = JSON.parse(raw);
-
-    if (Date.now() > stored.expiresAt) {
-      removeDevOtp(`dev_otp_${key}`);
-      return { valid: false, error: 'Verification code has expired. Please request a new one.' };
-    }
-
-    if (stored.attempts >= 5) {
-      removeDevOtp(`dev_otp_${key}`);
-      return { valid: false, error: 'Too many failed attempts. Please request a new code.' };
-    }
-
-    if (stored.code !== enteredCode.trim()) {
-      stored.attempts += 1;
-      setDevOtp(`dev_otp_${key}`, JSON.stringify(stored));
-      const left = 5 - stored.attempts;
-      return { valid: false, error: `Invalid code. ${left} attempt${left !== 1 ? 's' : ''} remaining.` };
-    }
-
-    removeDevOtp(`dev_otp_${key}`);
-    return { valid: true };
+    return verifyDevOtp(email, enteredCode);
   }
+}
+
+function verifyDevOtp(email: string, enteredCode: string): { valid: boolean; error?: string } {
+  const key = email.toLowerCase().trim();
+  const raw = getDevOtp(`dev_otp_${key}`);
+
+  if (!raw) {
+    return { valid: false, error: 'No verification code found. Please request a new one.' };
+  }
+
+  const stored = JSON.parse(raw);
+
+  if (Date.now() > stored.expiresAt) {
+    removeDevOtp(`dev_otp_${key}`);
+    return { valid: false, error: 'Verification code has expired. Please request a new one.' };
+  }
+
+  if (stored.attempts >= 5) {
+    removeDevOtp(`dev_otp_${key}`);
+    return { valid: false, error: 'Too many failed attempts. Please request a new code.' };
+  }
+
+  if (stored.code !== enteredCode.trim()) {
+    stored.attempts += 1;
+    setDevOtp(`dev_otp_${key}`, JSON.stringify(stored));
+    const left = 5 - stored.attempts;
+    return { valid: false, error: `Invalid code. ${left} attempt${left !== 1 ? 's' : ''} remaining.` };
+  }
+
+  removeDevOtp(`dev_otp_${key}`);
+  return { valid: true };
 }

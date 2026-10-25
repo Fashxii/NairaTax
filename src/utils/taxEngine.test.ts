@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateCRA,
+  calculateRentRelief,
   applyProgressiveBands,
   calculatePIT,
   calculatePayslip,
@@ -29,7 +30,21 @@ const DEFAULT_DEDUCTIONS: PITDeductionConfig = {
   bondExempt: false,
 };
 
-describe('calculateCRA', () => {
+describe('calculateRentRelief (NTA 2025)', () => {
+  it('is 20% of annual rent', () => {
+    expect(calculateRentRelief(1_000_000)).toBe(200_000);
+  });
+
+  it('is capped at ₦500,000', () => {
+    expect(calculateRentRelief(5_000_000)).toBe(500_000);
+  });
+
+  it('is 0 when no rent is paid', () => {
+    expect(calculateRentRelief(0)).toBe(0);
+  });
+});
+
+describe('calculateCRA (legacy, pre-2026)', () => {
   it('uses ₦200,000 for low incomes where 1% < 200,000', () => {
     // 1% of 3,000,000 = 30,000 < 200,000 → use 200,000
     // CRA = 200,000 + 20% of 3,000,000 = 200,000 + 600,000 = 800,000
@@ -61,22 +76,23 @@ describe('applyProgressiveBands', () => {
     expect(result).toHaveProperty('bandBreakdown');
   });
 
-  it('taxes only the first band for small taxable income', () => {
-    // 200,000 at 7% = 14,000
-    const result = applyProgressiveBands(200_000);
-    expect(result.annualTax).toBeCloseTo(14_000, 0);
+  it('first ₦800,000 is tax-free', () => {
+    const result = applyProgressiveBands(800_000);
+    expect(result.annualTax).toBe(0);
+    expect(result.bandBreakdown).toHaveLength(1);
   });
 
   it('taxes across multiple bands correctly', () => {
-    // 300,000 at 7% = 21,000 + 300,000 at 11% = 33,000 = 54,000
-    const result = applyProgressiveBands(600_000);
-    expect(result.annualTax).toBeCloseTo(54_000, 0);
-    expect(result.bandBreakdown).toHaveLength(2);
+    // 800k @0% + 2.2M @15% (330,000) + 1M @18% (180,000) = 510,000
+    const result = applyProgressiveBands(4_000_000);
+    expect(result.annualTax).toBeCloseTo(510_000, 0);
+    expect(result.bandBreakdown).toHaveLength(3);
   });
 
   it('taxes across all 6 bands for high income', () => {
-    const result = applyProgressiveBands(4_000_000);
-    expect(result.annualTax).toBeCloseTo(752_000, 0);
+    // 0 + 330,000 + 1,620,000 + 2,730,000 + 5,750,000 + 10M @25% (2,500,000)
+    const result = applyProgressiveBands(60_000_000);
+    expect(result.annualTax).toBeCloseTo(12_930_000, 0);
     expect(result.bandBreakdown).toHaveLength(6);
   });
 
@@ -92,11 +108,19 @@ describe('calculatePIT', () => {
     const result = calculatePIT(6_000_000, DEFAULT_DEDUCTIONS);
     expect(result.grossAnnual).toBe(6_000_000);
     expect(result.grossMonthly).toBe(500_000);
-    expect(result.craRelief).toBe(calculateCRA(6_000_000));
+    expect(result.craRelief).toBe(0); // no CRA under NTA 2025; no rent given
     expect(result.taxableIncome).toBeGreaterThanOrEqual(0);
     expect(result.annualTax).toBeGreaterThanOrEqual(0);
     expect(result.effectiveTaxRate).toBeGreaterThanOrEqual(0);
     expect(result.effectiveTaxRate).toBeLessThan(25);
+  });
+
+  it('applies rent relief when annual rent is provided', () => {
+    const noRent = calculatePIT(6_000_000, DEFAULT_DEDUCTIONS);
+    const withRent = calculatePIT(6_000_000, { ...DEFAULT_DEDUCTIONS, annualRent: 2_000_000 });
+    expect(withRent.craRelief).toBe(400_000);
+    expect(withRent.taxableIncome).toBe(noRent.taxableIncome - 400_000);
+    expect(withRent.annualTax).toBeLessThan(noRent.annualTax);
   });
 
   it('pension deduction reduces annual tax', () => {
@@ -172,6 +196,34 @@ describe('calculatePayslip', () => {
     });
     
     expect(result.nhis).toBeCloseTo(60000 / 12, 0);
+  });
+
+  it('applies no minimum tax: low earners pay zero PAYE', () => {
+    const result = calculatePayslip({
+      id: 'test-4',
+      name: 'Test',
+      role: 'Assistant',
+      grossMonthlySalary: 60_000, // ₦720k/yr, inside the 0% band
+      optInPension: false,
+      optInNHF: false,
+      optInNHIS: false,
+    });
+    expect(result.paye).toBe(0);
+    expect(result.netPay).toBe(60_000);
+  });
+
+  it('uses employee annualRent for rent relief', () => {
+    const result = calculatePayslip({
+      id: 'test-5',
+      name: 'Test',
+      role: 'Engineer',
+      grossMonthlySalary: 500_000,
+      optInPension: false,
+      optInNHF: false,
+      optInNHIS: false,
+      annualRent: 1_200_000,
+    });
+    expect(result.cra).toBeCloseTo(240_000 / 12, 2);
   });
 });
 

@@ -10,6 +10,8 @@ import { Invoice, InvoiceLineItem, InvoiceStatus } from '../types';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { validateEmail, sanitize } from '../utils/validators';
 import { useToast } from './Toast';
+import { useAppContext } from '../AppShell';
+import { useStatutoryOverrides, resolveVatActive } from '../utils/statutoryOverrides';
 
 const VAT_RATE = 0.075; // 7.5% Nigeria VAT
 
@@ -96,6 +98,12 @@ const statusConfig: Record<InvoiceStatus, { color: string; bg: string; icon: Rea
 
 export default function InvoiceManager() {
   const { showToast } = useToast();
+  const { session } = useAppContext();
+  const statutoryOverrides = useStatutoryOverrides(session?.contactMethod);
+  // Default behaviour (auto) keeps charging VAT; an admin can mark the company exempt.
+  const vatActive = resolveVatActive(statutoryOverrides, true);
+  const effectiveVatRate = vatActive ? VAT_RATE : 0;
+  const vatIsOverridden = statutoryOverrides.corporate.vatStatus !== 'auto';
   const [invoices, setInvoices] = useUserPersistedState<Invoice[]>('invoices', [], SAMPLE_INVOICES);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -160,7 +168,7 @@ export default function InvoiceManager() {
     }
 
     const subtotal = newLineItems.reduce((sum, li) => sum + (li.quantity * li.unitPrice), 0);
-    const vatAmount = Math.round(subtotal * VAT_RATE);
+    const vatAmount = Math.round(subtotal * effectiveVatRate);
     const total = subtotal + vatAmount;
     const invoiceNum = 'DIY-2026-' + String(invoices.length + 1).padStart(4, '0');
 
@@ -233,7 +241,7 @@ export default function InvoiceManager() {
   };
 
   const newSubtotal = newLineItems.reduce((sum, li) => sum + (li.quantity * li.unitPrice), 0);
-  const newVat = Math.round(newSubtotal * VAT_RATE);
+  const newVat = Math.round(newSubtotal * effectiveVatRate);
   const newTotal = newSubtotal + newVat;
 
   return (
@@ -602,7 +610,10 @@ export default function InvoiceManager() {
                     <span className="font-bold text-on-surface">{formatNaira(newSubtotal)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-on-surface-variant font-semibold">VAT (7.5%)</span>
+                    <span className="text-on-surface-variant font-semibold">
+                      {vatActive ? 'VAT (7.5%)' : 'VAT (Exempt)'}
+                      {vatIsOverridden && <span className="ml-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Admin-approved</span>}
+                    </span>
                     <span className="font-bold text-on-surface">{formatNaira(newVat)}</span>
                   </div>
                   <div className="border-t border-outline-variant pt-2 flex justify-between">

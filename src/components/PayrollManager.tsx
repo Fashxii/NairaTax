@@ -348,7 +348,7 @@ export default function PayrollManager() {
                       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3">Tax Computation (Monthly)</p>
                       <div className="space-y-3 bg-surface-container-low p-4 rounded-xl border border-outline-variant/50">
                         <div className="flex justify-between text-xs">
-                          <span className="text-on-surface-variant">Consolidated Relief (CRA)</span>
+                          <span className="text-on-surface-variant">Rent Relief (NTA 2025)</span>
                           <span className="text-emerald-700 font-semibold">Exempt: {formatNaira(slip.cra)}</span>
                         </div>
                         <div className="flex justify-between text-xs">

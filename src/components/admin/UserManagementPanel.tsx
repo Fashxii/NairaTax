@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, UserCheck, Shield, Activity, X, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Search, UserCheck, Shield, Activity, X, Plus, Trash2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useToast } from '../Toast';
 import {
   getAllUsers,
@@ -15,6 +15,8 @@ import {
 import { db } from '../../lib/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { recordAuditLog } from '../../utils/auditLogger';
+import { useAppContext } from '../../AppShell';
+import StatutoryOverridesModal from './StatutoryOverridesModal';
 
 const ROLE_BADGES: Record<string, { label: string; bg: string; text: string }> = {
   super_admin: { label: 'Super Admin', bg: 'bg-red-100', text: 'text-red-800' },
@@ -23,6 +25,88 @@ const ROLE_BADGES: Record<string, { label: string; bg: string; text: string }> =
   taxpayer: { label: 'Taxpayer', bg: 'bg-gray-100', text: 'text-gray-800' },
 };
 
+function toISOStringSafe(val: unknown): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? new Date().toISOString() : val.toISOString();
+  }
+  if (typeof val === 'object' && val !== null) {
+    if ('toDate' in val && typeof (val as any).toDate === 'function') {
+      try {
+        const d = (val as any).toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString();
+      } catch {}
+    }
+    if ('seconds' in val && typeof (val as any).seconds === 'number') {
+      return new Date((val as any).seconds * 1000).toISOString();
+    }
+    if ('_seconds' in val && typeof (val as any)._seconds === 'number') {
+      return new Date((val as any)._seconds * 1000).toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
+function formatDateOnly(val: unknown): string {
+  if (!val) return '—';
+  if (typeof val === 'string') {
+    return val.includes('T') ? val.split('T')[0] : val;
+  }
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '—' : d.toISOString().split('T')[0];
+  }
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? '—' : val.toISOString().split('T')[0];
+  }
+  if (typeof val === 'object' && val !== null) {
+    if ('toDate' in val && typeof (val as any).toDate === 'function') {
+      try {
+        const d = (val as any).toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch {}
+    }
+    if ('seconds' in val && typeof (val as any).seconds === 'number') {
+      return new Date((val as any).seconds * 1000).toISOString().split('T')[0];
+    }
+    if ('_seconds' in val && typeof (val as any)._seconds === 'number') {
+      return new Date((val as any)._seconds * 1000).toISOString().split('T')[0];
+    }
+  }
+  return '—';
+}
+
+function formatDateTime(val: unknown, fallback = 'Never Logged In'): string {
+  if (!val) return fallback;
+  try {
+    if (typeof val === 'string' || typeof val === 'number') {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d.toLocaleString('en-NG');
+    }
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val.toLocaleString('en-NG');
+    }
+    if (typeof val === 'object' && val !== null) {
+      if ('toDate' in val && typeof (val as any).toDate === 'function') {
+        const d = (val as any).toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d.toLocaleString('en-NG');
+      }
+      if ('seconds' in val && typeof (val as any).seconds === 'number') {
+        return new Date((val as any).seconds * 1000).toLocaleString('en-NG');
+      }
+      if ('_seconds' in val && typeof (val as any)._seconds === 'number') {
+        return new Date((val as any)._seconds * 1000).toLocaleString('en-NG');
+      }
+    }
+  } catch {}
+  return fallback;
+}
+
 export default function UserManagementPanel() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
@@ -30,6 +114,9 @@ export default function UserManagementPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [selectedUser, setSelectedUser] = useState<RegisteredUser | null>(null);
+  const [overrideUser, setOverrideUser] = useState<RegisteredUser | null>(null);
+  const { session } = useAppContext();
+  const actorEmail = session?.contactMethod || 'admin@diytax9ja.ng';
 
   // Add User Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -59,7 +146,8 @@ export default function UserManagementPanel() {
               accountType: data.accountType || merged[existingIdx].accountType,
               role: data.role || merged[existingIdx].role,
               isActive: data.isActive !== undefined ? data.isActive : merged[existingIdx].isActive,
-              lastLogin: data.lastLogin || merged[existingIdx].lastLogin,
+              lastLogin: data.lastLogin ? toISOStringSafe(data.lastLogin) : merged[existingIdx].lastLogin,
+              createdAt: data.createdAt ? toISOStringSafe(data.createdAt) : toISOStringSafe(merged[existingIdx].createdAt),
             };
           } else {
             merged.push({
@@ -70,8 +158,8 @@ export default function UserManagementPanel() {
               role: data.role || 'taxpayer',
               passwordHash: null,
               isActive: data.isActive !== false,
-              createdAt: data.createdAt || new Date().toISOString(),
-              lastLogin: data.lastLogin || null,
+              createdAt: toISOStringSafe(data.createdAt),
+              lastLogin: data.lastLogin ? toISOStringSafe(data.lastLogin) : null,
             });
           }
         });
@@ -342,9 +430,9 @@ export default function UserManagementPanel() {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <p className="font-medium text-on-surface">{user.createdAt.split('T')[0]}</p>
+                      <p className="font-medium text-on-surface">{formatDateOnly(user.createdAt)}</p>
                       <p className="text-[9px] text-on-surface-variant font-mono">
-                        {user.lastLogin ? new Date(user.lastLogin).toLocaleString('en-NG') : 'Never Logged In'}
+                        {formatDateTime(user.lastLogin)}
                       </p>
                     </td>
 
@@ -367,6 +455,17 @@ export default function UserManagementPanel() {
                         >
                           <Activity className="w-4 h-4" />
                         </button>
+
+                        {user.role === 'taxpayer' && (
+                          <button
+                            id={`statutory-${user.email}`}
+                            onClick={() => setOverrideUser(user)}
+                            title="Statutory status overrides"
+                            className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-700 cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                          </button>
+                        )}
 
                         <button
                           onClick={() => toggleUserStatus(user.id)}
@@ -538,7 +637,7 @@ export default function UserManagementPanel() {
                   <p className="font-bold text-on-surface">Account Metadata</p>
                   <p className="text-[11px] text-on-surface-variant">User ID: <span className="font-mono">{selectedUser.id}</span></p>
                   <p className="text-[11px] text-on-surface-variant">Role: <span className="font-mono">{selectedUser.role.toUpperCase()}</span></p>
-                  <p className="text-[11px] text-on-surface-variant">Created: <span className="font-mono">{selectedUser.createdAt}</span></p>
+                  <p className="text-[11px] text-on-surface-variant">Created: <span className="font-mono">{formatDateOnly(selectedUser.createdAt)}</span></p>
                 </div>
 
                 <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/40">
@@ -548,7 +647,7 @@ export default function UserManagementPanel() {
                       <UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Account active and verified
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-blue-600" /> Last logged in: {selectedUser.lastLogin || 'Never'}
+                      <Shield className="w-3.5 h-3.5 text-blue-600" /> Last logged in: {formatDateTime(selectedUser.lastLogin, 'Never')}
                     </li>
                   </ul>
                 </div>
@@ -564,6 +663,17 @@ export default function UserManagementPanel() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Statutory Overrides Modal */}
+      <AnimatePresence>
+        {overrideUser && (
+          <StatutoryOverridesModal
+            user={overrideUser}
+            actorEmail={actorEmail}
+            onClose={() => setOverrideUser(null)}
+          />
         )}
       </AnimatePresence>
     </motion.div>

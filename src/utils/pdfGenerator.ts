@@ -195,7 +195,7 @@ export function generatePayslip(employee: Employee, payslip: PayslipResult): voi
     head: [['Earnings & Reliefs', 'Monthly Amount (₦)']],
     body: [
       ['Gross Salary', formatNaira(payslip.gross)],
-      ['Consolidated Relief Allowance (CRA)', formatNaira(payslip.cra)],
+      ['Rent Relief (NTA 2025)', formatNaira(payslip.cra)],
       ['Taxable Income', formatNaira(payslip.taxableIncome)],
     ],
     headStyles: {

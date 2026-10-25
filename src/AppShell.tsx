@@ -39,6 +39,8 @@ export interface AppContext {
   handleLinkSkip: () => void;
   handleLinkNINFromDashboard: () => void;
   handleLogout: () => void;
+  /** Completes a registration wizard (individual or business) and signs the user in. */
+  setSessionFromRegistration: (p: { email: string; fullName: string; maskedNin: string; accountType?: AccountType }) => void;
 }
 
 /** Hook for child routes to access shared app context */
@@ -173,6 +175,17 @@ export default function AppShell() {
     handleLinkSkip,
     handleLinkNINFromDashboard,
     handleLogout,
+    setSessionFromRegistration: ({ email, fullName, maskedNin, accountType = 'individual' }) => {
+      setSession((prev) => ({
+        ...prev,
+        accountType,
+        contactMethod: email,
+        isVerified: true,
+        fullName,
+        isNINLinked: true,
+        nin: maskedNin,
+      }));
+    },
   };
 
   return (

@@ -42,9 +42,10 @@ export default function Gateway() {
     setNotice('');
   };
 
+  const registerPath = (type: AccountType) => (type === 'business' ? '/register/business' : '/register');
+
   const openSignUp = () => {
-    switchAuthMode('signup');
-    handleSmoothScroll('auth-portal');
+    navigate(registerPath(accountType));
   };
 
   // Savings Calculator Slider State
@@ -80,10 +81,9 @@ export default function Gateway() {
       const res = await sendOTPEmail(cleaned, nameToSend, accountTypeToSend);
 
       if (res.needsRegistration) {
-        setAuthMode('signup');
         setIsLoading(false);
         setError('');
-        setNotice('No account found for this email. Enter your name below to create one.');
+        navigate(registerPath(accountTypeToSend), { state: { email: cleaned } });
         return;
       }
 
@@ -371,6 +371,44 @@ export default function Gateway() {
                 </button>
               </div>
 
+              {isNewUser ? (
+                <div className="space-y-4">
+                  <ul className="space-y-2.5">
+                    {(accountType === 'business' ? [
+                      'Verify your CAC entity',
+                      'Authorise a signatory (2FA)',
+                      'Get your CIT classification',
+                      'Check VAT obligations',
+                      'Link your corporate account',
+                    ] : [
+                      'Verify your email & phone',
+                      'Link your NIN and tax jurisdiction',
+                      'Tell us how you earn',
+                      'Pre-screen your statutory reliefs',
+                      'Set up refunds & confirm',
+                    ]).map((label, i) => (
+                      <li key={label} className="flex items-center gap-3 text-xs font-semibold text-on-surface">
+                        <span className="w-6 h-6 rounded-full bg-primary-container/10 text-primary-container flex items-center justify-center text-[10px] font-black">{i + 1}</span>
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    id={accountType === 'business' ? 'start-business-registration' : 'start-individual-registration'}
+                    type="button"
+                    onClick={() => navigate(registerPath(accountType), { state: { email: contactMethod.includes('@') ? contactMethod.trim() : undefined } })}
+                    className="w-full h-12 bg-primary-container text-white font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+                  >
+                    <span>{accountType === 'business' ? 'Start Business Registration' : 'Start Individual Registration'}</span>
+                    <ArrowRight className="w-4 h-4 text-accent-green" />
+                  </button>
+                  <p className="text-[11px] text-center text-on-surface-variant">About 4 minutes · progress is saved automatically</p>
+                  <p className="text-xs text-center text-on-surface-variant">
+                    Already registered?{' '}
+                    <button type="button" onClick={() => switchAuthMode('signin')} className="font-bold text-[#013220] hover:underline cursor-pointer">Sign in</button>
+                  </p>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {notice && (
                   <p className="text-xs font-medium text-emerald-900 bg-emerald-50/70 border border-emerald-200 rounded-lg px-3 py-2">{notice}</p>
@@ -443,6 +481,7 @@ export default function Gateway() {
                   </button>
                 </p>
               </form>
+              )}
 
               <div className="pt-4 border-t border-outline-variant text-center space-y-2">
                 <p className="text-[10px] text-on-surface-variant/70 leading-relaxed">
@@ -531,7 +570,7 @@ export default function Gateway() {
                   ₦{estimates.optimizedMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs text-on-surface-variant font-normal">/ mo</span>
                 </p>
                 <p className="text-[11px] text-on-surface-variant mt-1.5 leading-relaxed">
-                  Estimated tax utilizing Consolidated Relief Allowance (CRA), compulsory pensions, and voluntary housing contributions.
+                  Estimated with NTA 2025 bands, rent relief, compulsory pension, NHF and NHIS contributions.
                 </p>
               </div>
             </div>

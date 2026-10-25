@@ -5,14 +5,19 @@ import {
   Info, Sparkles, CheckCircle2
 } from 'lucide-react';
 import {
-  calculateCIT, CITInput, CITResult, CIT_TIERS
+  calculateCIT, CITInput, CITResult, CIT_TIERS, resolveCompanyTier
 } from '../../utils/citEngine';
 import {
   ASSET_CLASSES, calculateAssetAllowance, AllowanceResult
 } from '../../utils/capitalAllowances';
 import { formatNaira } from '../../utils/taxEngine';
+import { useAppContext } from '../../AppShell';
+import { useStatutoryOverrides, CIT_BRACKET_LABELS } from '../../utils/statutoryOverrides';
 
 const CITCalculatorTab = memo(function CITCalculatorTab() {
+  const { session } = useAppContext();
+  const overrides = useStatutoryOverrides(session?.contactMethod);
+  const bracketOverride = overrides.corporate.citBracket;
   // Form inputs
   const [grossTurnover, setGrossTurnover] = useState('75000000');
   const [totalRevenue, setTotalRevenue] = useState('75000000');
@@ -39,14 +44,15 @@ const CITCalculatorTab = memo(function CITCalculatorTab() {
       capitalAllowances: parseFloat(capitalAllowancesInput) || 0,
       lossesCarriedForward: parseFloat(lossesForward) || 0,
       isTechLevySector: isTechSector,
+      bracketOverride,
     };
     setResult(calculateCIT(input));
   };
 
-  // Auto-calculate on first render
+  // Calculate on first render and whenever the admin override changes
   useEffect(() => {
     handleCalculate();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bracketOverride]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePreviewAllowance = () => {
     const cost = parseFloat(assetCost);
@@ -64,9 +70,8 @@ const CITCalculatorTab = memo(function CITCalculatorTab() {
     setShowAllowanceCalc(false);
   };
 
-  const currentTier = CIT_TIERS.find(t =>
-    (parseFloat(grossTurnover) || 0) <= t.maxTurnover
-  ) || CIT_TIERS[CIT_TIERS.length - 1];
+  const currentTier = resolveCompanyTier(parseFloat(grossTurnover) || 0, bracketOverride);
+  const isOverridden = bracketOverride !== 'auto';
 
   return (
     <motion.section
@@ -83,6 +88,15 @@ const CITCalculatorTab = memo(function CITCalculatorTab() {
           Compute corporate tax liability under the Companies Income Tax Act (CITA) with capital allowances, minimum tax, and Education Tax (EDT).
         </p>
       </div>
+
+      {isOverridden && (
+        <div id="cit-admin-override" className="p-3 rounded-xl border border-emerald-300 bg-emerald-50 text-xs text-emerald-900 flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-700 mt-0.5 shrink-0" />
+          <span>
+            <strong>Admin-approved CIT bracket:</strong> {CIT_BRACKET_LABELS[bracketOverride]}. This replaces the turnover-based classification for your company.
+          </span>
+        </div>
+      )}
 
       {/* Classification Badges */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -111,7 +125,7 @@ const CITCalculatorTab = memo(function CITCalculatorTab() {
             {currentTier.label === tier.label && (
               <div className="mt-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span className="text-[10px] font-bold text-emerald-600">Your Classification</span>
+                <span className="text-[10px] font-bold text-emerald-600">{isOverridden ? 'Admin-approved' : 'Your Classification'}</span>
               </div>
             )}
           </div>
