@@ -91,6 +91,8 @@ export interface Employee {
   optInPension: boolean;
   optInNHF: boolean;
   optInNHIS: boolean;
+  /** Annual rent paid by the employee (₦) — enables NTA 2025 rent relief. */
+  annualRent?: number;
 }
 
 export interface PayslipResult {

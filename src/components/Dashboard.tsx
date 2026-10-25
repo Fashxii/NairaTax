@@ -18,6 +18,7 @@ import { useToast } from './Toast';
 import { useAppContext } from '../AppShell';
 import { useUserPersistedState, getDisplayName, getGreetingName, getInitials, isDemoSession } from '../utils/userScope';
 import { calculatePIT, applyProgressiveBands } from '../utils/taxEngine';
+import { useStatutoryOverrides } from '../utils/statutoryOverrides';
 import { calculateCIT } from '../utils/citEngine';
 
 // Extracted dashboard tab components
@@ -132,6 +133,7 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 
 export default function Dashboard() {
   const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
+  const statutoryOverrides = useStatutoryOverrides(session?.contactMethod);
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [filings, setFilings] = useUserPersistedState<TaxFiling[]>('filings', [], DEMO_FILINGS);
@@ -241,8 +243,13 @@ export default function Dashboard() {
   }
   // Liability from the user's declared annual income using the real tax engines
   const PIT_DEFAULTS = {
-    pensionRate: 8, vpc: false, lifeAssurance: false, nhf: false, nhis: false, charity: false,
-    children: false, dependantRelative: false, disabled: false, mortgageInterest: false, bondExempt: false,
+    pensionRate: 8, vpc: false, lifeAssurance: false, nhf: false, nhis: false,
+    // Pre-2026 allowances apply only when admin-approved for this profile
+    charity: statutoryOverrides.reliefs.charity,
+    children: statutoryOverrides.reliefs.children,
+    dependantRelative: statutoryOverrides.reliefs.dependantRelative,
+    disabled: statutoryOverrides.reliefs.disabled,
+    mortgageInterest: false, bondExempt: false,
   };
   const computeLiability = (deductions: number) => {
     const gross = Math.max(0, annualGrossIncome);
@@ -251,6 +258,7 @@ export default function Dashboard() {
       const cit = calculateCIT({
         grossTurnover: gross, totalRevenue: gross, allowableExpenses: deductions,
         capitalAllowances: 0, lossesCarriedForward: 0, isTechLevySector: false,
+        bracketOverride: statutoryOverrides.corporate.citBracket,
       });
       return { gross, net: Math.round(cit.assessableProfit), liability: Math.round(cit.totalTaxPayable) };
     }

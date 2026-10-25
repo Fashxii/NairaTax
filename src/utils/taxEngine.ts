@@ -3,17 +3,21 @@
  *
  * Single source of truth for:
  *  - Personal Income Tax (PIT) progressive band computation
- *  - Consolidated Relief Allowance (CRA) formula
+ *  - Rent relief (replaces the Consolidated Relief Allowance from 2026)
  *  - PAYE payslip generation for employees
  *  - Gateway savings estimator
  *
  * References:
- *  - Personal Income Tax Act (PITA) as amended
- *  - Finance Act 2023
+ *  - Nigeria Tax Act (NTA) 2025, effective 1 January 2026 — PIT bands,
+ *    rent relief, abolition of CRA and of the individual minimum tax
+ *  - Personal Income Tax Act (PITA) as amended (pre-2026, superseded)
  *  - National Pension Commission (PenCom) guidelines
  */
 
 import { TaxCalculationResult, PayslipResult, Employee } from '../types';
+import { RENT_RELIEF_RATE, RENT_RELIEF_CAP, estimateRentRelief } from '../registration/catalog';
+
+export { RENT_RELIEF_RATE, RENT_RELIEF_CAP };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -29,23 +33,29 @@ export const NHF_RATE = 0.025;
 /** Flat annual NHIS estimate */
 export const NHIS_ANNUAL_FLAT = 60000;
 
-/** CRA flat base (₦200,000) */
+/**
+ * @deprecated CRA was abolished by the Nigeria Tax Act 2025 (from 1 Jan 2026).
+ * Kept only so historic (pre-2026) computations can still reference it.
+ */
 export const CRA_FLAT_BASE = 200000;
 
-/** CRA percentage component (20% of gross) */
+/** @deprecated See CRA_FLAT_BASE. */
 export const CRA_PERCENT = 0.20;
 
-/** Minimum tax rate (1% of gross) */
+/**
+ * @deprecated The 1% individual minimum tax was removed by the NTA 2025.
+ * Not applied by calculatePIT / calculatePayslip.
+ */
 export const MINIMUM_TAX_RATE = 0.01;
 
-/** Nigerian PIT progressive tax bands */
+/** Nigerian PIT progressive tax bands — NTA 2025 (annual chargeable income) */
 export const TAX_BANDS = [
-  { band: 'First ₦300,000', limit: 300000, rate: 0.07 },
-  { band: 'Next ₦300,000', limit: 300000, rate: 0.11 },
-  { band: 'Next ₦500,000', limit: 500000, rate: 0.15 },
-  { band: 'Next ₦500,000', limit: 500000, rate: 0.19 },
-  { band: 'Next ₦1,600,000', limit: 1600000, rate: 0.21 },
-  { band: 'Above ₦3,200,000', limit: Infinity, rate: 0.24 },
+  { band: 'First ₦800,000', limit: 800_000, rate: 0 },
+  { band: 'Next ₦2,200,000', limit: 2_200_000, rate: 0.15 },
+  { band: 'Next ₦9,000,000', limit: 9_000_000, rate: 0.18 },
+  { band: 'Next ₦13,000,000', limit: 13_000_000, rate: 0.21 },
+  { band: 'Next ₦25,000,000', limit: 25_000_000, rate: 0.23 },
+  { band: 'Above ₦50,000,000', limit: Infinity, rate: 0.25 },
 ] as const;
 
 /** Standard deduction amounts for the PIT calculator toggles */
@@ -62,11 +72,22 @@ export const DEDUCTION_AMOUNTS = {
   bondExempt: 150000,
 } as const;
 
-// ─── CRA Formula ─────────────────────────────────────────────────────────────
+// ─── Rent Relief (NTA 2025) ──────────────────────────────────────────────────
+
+/**
+ * Rent relief: 20% of annual rent actually paid, capped at ₦500,000.
+ * Replaces CRA from 1 January 2026.
+ */
+export function calculateRentRelief(annualRent: number): number {
+  return estimateRentRelief(annualRent || 0);
+}
+
+// ─── CRA Formula (legacy) ────────────────────────────────────────────────────
 
 /**
  * Calculates the Consolidated Relief Allowance (CRA).
  * Formula: max(₦200,000, 1% of gross) + 20% of gross
+ * @deprecated Abolished by the NTA 2025; not used by current computations.
  */
 export function calculateCRA(grossAnnual: number): number {
   const percentBase = grossAnnual * 0.01;
@@ -111,21 +132,29 @@ export function applyProgressiveBands(taxableIncome: number): {
 /** Configuration for optional deduction toggles in the PIT calculator */
 export interface PITDeductionConfig {
   pensionRate: number; // e.g. 8
+  /** Annual rent paid (₦) — drives the NTA 2025 rent relief. Optional. */
+  annualRent?: number;
   vpc: boolean;
   lifeAssurance: boolean;
   nhf: boolean;
   nhis: boolean;
   charity: boolean;
+  /** @deprecated Pre-2026 PITA allowance; not a relief under the NTA 2025. */
   children: boolean;
+  /** @deprecated Pre-2026 PITA allowance; not a relief under the NTA 2025. */
   dependantRelative: boolean;
+  /** @deprecated Pre-2026 PITA allowance; not a relief under the NTA 2025. */
   disabled: boolean;
   mortgageInterest: boolean;
   bondExempt: boolean;
 }
 
 /**
- * Full Personal Income Tax calculation with CRA, pension, optional deductions,
- * progressive bands, and minimum tax check.
+ * Full Personal Income Tax calculation (NTA 2025) with rent relief, pension,
+ * optional deductions and progressive bands. No CRA and no minimum tax.
+ *
+ * Note: the result field `craRelief` is retained for API compatibility and
+ * now carries the rent relief amount.
  */
 export function calculatePIT(
   grossAnnual: number,
@@ -133,7 +162,7 @@ export function calculatePIT(
 ): TaxCalculationResult {
   const grossMonthly = grossAnnual / 12;
   const pensionContribution = grossAnnual * (deductions.pensionRate / 100);
-  const craRelief = calculateCRA(grossAnnual);
+  const craRelief = calculateRentRelief(deductions.annualRent ?? 0);
 
   // Sum all deductions
   let totalDeductions = pensionContribution + craRelief;
@@ -174,8 +203,9 @@ export function calculatePIT(
 
 /**
  * Calculates a full monthly payslip for an employee including
- * statutory deductions (pension, NHF, NHIS), CRA, progressive PAYE,
- * and minimum tax check.
+ * statutory deductions (pension, NHF, NHIS), rent relief (when the
+ * employee's annual rent is known) and NTA 2025 progressive PAYE.
+ * The `cra` field on the result now carries the monthly rent relief.
  */
 export function calculatePayslip(emp: Employee): PayslipResult {
   const grossAnnual = emp.grossMonthlySalary * 12;
@@ -185,21 +215,15 @@ export function calculatePayslip(emp: Employee): PayslipResult {
   const annualNHF = emp.optInNHF ? grossAnnual * NHF_RATE : 0;
   const annualNHIS = emp.optInNHIS ? NHIS_ANNUAL_FLAT : 0;
 
-  // CRA
-  const cra = calculateCRA(grossAnnual);
+  // Rent relief (replaces CRA from 2026)
+  const cra = calculateRentRelief(emp.annualRent ?? 0);
 
   // Taxable Income
   const taxExemptions = annualPension + annualNHF + annualNHIS + cra;
   const taxableIncome = Math.max(0, grossAnnual - taxExemptions);
 
-  // Apply progressive bands
-  let { annualTax: annualPaye } = applyProgressiveBands(taxableIncome);
-
-  // Minimum tax check (1% of gross)
-  const minimumTax = grossAnnual * MINIMUM_TAX_RATE;
-  if (annualPaye < minimumTax) {
-    annualPaye = minimumTax;
-  }
+  // Apply progressive bands (no minimum tax under the NTA 2025)
+  const { annualTax: annualPaye } = applyProgressiveBands(taxableIncome);
 
   const monthlyPaye = annualPaye / 12;
   const monthlyPension = annualPension / 12;
@@ -231,15 +255,18 @@ export interface SavingsEstimate {
 
 /**
  * Quick savings estimate for the Gateway landing page slider.
- * Compares a standard flat PIT rate vs. an optimized rate
- * using CRA + pension + life assurance deductions.
+ * Compares NTA 2025 PIT with no reliefs claimed vs. PIT after typical
+ * reliefs (8% pension, NHF, NHIS and rent relief on rent ≈ 20% of income).
  */
 export function estimateSavings(monthlyIncome: number): SavingsEstimate {
-  const annualGross = monthlyIncome * 12;
-  // Standard basic tax rate (approx 12.5% for individual PIT)
-  const standardAnnualTax = annualGross * 0.125;
-  // Optimized PIT with DIYtax9ja reliefs (approx effective rate ~7.2%)
-  const optimizedAnnualTax = annualGross * 0.072;
+  const annualGross = Math.max(0, monthlyIncome * 12);
+  const standardAnnualTax = applyProgressiveBands(annualGross).annualTax;
+  const reliefs =
+    annualGross * PENSION_RATE +
+    annualGross * NHF_RATE +
+    NHIS_ANNUAL_FLAT +
+    calculateRentRelief(annualGross * 0.2);
+  const optimizedAnnualTax = applyProgressiveBands(Math.max(0, annualGross - reliefs)).annualTax;
   const annualSavings = Math.max(0, standardAnnualTax - optimizedAnnualTax);
 
   return {

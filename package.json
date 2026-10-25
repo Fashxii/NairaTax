@@ -11,9 +11,10 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm --prefix functions run build && vite build && npx firebase-tools deploy --only functions,hosting,firestore --non-interactive"
+    "deploy": "npm --prefix functions run build && vite build && node scripts/firebase-deploy.mjs --only functions,hosting,firestore"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.2",
     "firebase": "^11.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
@@ -21,7 +22,9 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "react-router-dom": "^7.6.2"
+    "react-hook-form": "^7.91.0",
+    "react-router-dom": "^7.6.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@google/genai": "^2.4.0",

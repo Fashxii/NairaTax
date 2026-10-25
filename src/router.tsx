@@ -10,6 +10,8 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AppShell from './AppShell';
 import Gateway from './components/Gateway';
 import Verification from './components/Verification';
+import RegistrationWizard from './components/registration/RegistrationWizard';
+import CorporateWizard from './components/registration/corporate/CorporateWizard';
 import ComplianceLink from './components/ComplianceLink';
 import Dashboard from './components/Dashboard';
 import AdminGateway from './components/AdminGateway';
@@ -22,6 +24,8 @@ import { AuthGuard, AdminGuard, SuperAdminGuard } from './components/RouteGuard'
  *
  *  /                → Gateway (landing / login / register)
  *  /verify          → OTP Verification (email code)
+ *  /register        → Individual (PIT) 5-step onboarding wizard
+ *  /register/business → Corporate (CIT / VAT) 5-step onboarding wizard
  *  /compliance      → NIN Linking
  *  /dashboard       → Main Dashboard (protected — requires verified user)
  *  /admin           → Admin Staff Login
@@ -36,6 +40,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Gateway /> },
       { path: 'verify', element: <Verification /> },
+      { path: 'register', element: <RegistrationWizard /> },
+      { path: 'register/business', element: <CorporateWizard /> },
       { path: 'compliance', element: <ComplianceLink /> },
       { path: 'dashboard', element: <AuthGuard><Dashboard /></AuthGuard> },
       { path: 'admin', element: <AdminGateway /> },

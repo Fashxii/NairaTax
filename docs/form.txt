@@ -1,0 +1,86 @@
+You are a senior full-stack engineer and UI/UX systems specialist. Refactor the existing individual registration flow into a high-conversion, multi-step onboarding wizard tailored for Nigerian Personal Income Tax (PIT) under current statutory guidelines.
+
+The architecture must be mobile-first, resilient, performant, and designed for a Next.js / React application with strict schema validation.
+
+---
+
+### 1. Functional Objectives & Step Breakdown
+
+Replace the basic sign-up form with a cohesive 5-step wizard. Each step must maintain state locally and persist progress to prevent data loss on page refresh.
+
+#### Step 1: Core Credentials & Authentication
+* **Fields:**
+  * Full Name (First & Last)
+  * Email Address
+  * Mobile Phone Number (+234 format enforced)
+  * Password (with real-time strength meter: length, symbols, mixed case)
+  * Consent Checkbox: Explicit opt-in for processing under the Nigeria Data Protection Act (NDPA)
+* **Behavior:** Trigger an inline 6-digit OTP verification screen (SMS/WhatsApp simulation) before unlocking Step 2.
+
+#### Step 2: National Identity & Jurisdiction Mapping
+* **Fields:**
+  * National Identification Number (NIN): 11 digits, numeric mask. Include an asynchronous mock verification trigger that auto-fills/validates Legal Name and Date of Birth.
+  * Taxpayer Identification Number (JTB / NRS TIN): 10–12 digits, optional toggle ("I don't have a TIN yet — generate one during filing").
+  * State of Residence (as of January 1): Dropdown of all 36 Nigerian states + FCT.
+  * Local Government Area (LGA): Dynamically filtered based on selected State.
+  * Residential Address: Street, City, Landmark.
+  * State Internal Revenue Service (SIRS) Indicator: Automatically render the responsible tax authority banner (e.g., selecting "Lagos" displays "Jurisdiction: Lagos Internal Revenue Service (LIRS)"; selecting "FCT" displays "FCT-IRS").
+
+#### Step 3: Income Classification & Employment Status
+* **Tax Profile Toggles (Single or multi-select chips):**
+  * `PAYE Earner` (Formal salary earner; tax deducted at source by employer)
+  * `Direct Assessment / Self-Employed` (Freelancer, sole proprietor, independent consultant)
+  * `Digital Asset / Tech Earner` (Receives foreign currency contracts or remote earnings)
+  * `Passive / Investment Earner` (Rental income, dividends, capital returns)
+  * `Unemployed / Student` (Under statutory basic exemption threshold)
+* **Conditional Disclosures:**
+  * If `PAYE`: Show Employer Name and Form H1 / Annual Tax Deduction Card upload toggle.
+  * If `Direct Assessment`: Show Annual Estimated Gross Turnover (NGN) and Primary Trade / Industry dropdown.
+  * If `Passive / Rental`: Show "Do you hold Withholding Tax (WHT) credit notes to offset liability?" (Yes/No).
+
+#### Step 4: Statutory Reliefs & Allowance Pre-Screening
+* Collect data to calculate the Consolidated Relief Allowance (CRA) and eligible statutory exemptions:
+  * Pension Contribution (RSA): Toggle → Pension Fund Administrator (PFA) dropdown + RSA PIN input.
+  * National Housing Fund (NHF): Toggle (2.5% statutory contribution).
+  * National Health Insurance Scheme (NHIA): Toggle.
+  * Life Assurance Premium: Toggle → Annual premium paid on self/spouse.
+  * Housing Status / Rent Relief:
+    * Select housing type: Tenant vs. Owner-Occupier.
+    * If Tenant: Annual Rent Paid (NGN) (flags eligibility for qualifying statutory rent deductions).
+    * If Owner: Mortgage Interest on primary residence.
+
+#### Step 5: Payout Setup & Profile Confirmation
+* **Fields:**
+  * Bank Name (Dropdown of major Nigerian commercial & digital banks).
+  * NUBAN Account Number (10 digits).
+  * Account Name Resolution: Real-time UI indicator simulating NIBSS name inquiry.
+* **Review Card:** High-level summary of:
+  * Assigned Jurisdiction (e.g., LIRS / OGIRS)
+  * Tax Classification (PAYE vs. Direct Assessment)
+  * Eligible Deductions Selected
+* **Submission Action:** Final submit button emitting the validated payload.
+
+---
+
+### 2. Technical Stack & Implementation Requirements
+
+1. **State Management & Forms:**
+   * Use `react-hook-form` paired with `zod` for type-safe schema validation.
+   * Modularize schemas per step (`step1Schema`, `step2Schema`, etc.) and combine them into a unified `individualRegistrationSchema`.
+2. **Component Architecture:**
+   * Implement a clean Stepper progress bar at the top displaying step index, step title, and completion indicators.
+   * Provide smooth transitions between steps with "Save & Continue" and "Back" buttons.
+   * Ensure auto-save persistence (e.g., syncing form state to `sessionStorage` or local state store).
+3. **UX & Input Masks:**
+   * Format currency inputs automatically with the Naira symbol (`₦`) and comma separators (`₦1,200,000`).
+   * Enforce digit-only masking on NIN (11 digits), Phone Number (11 digits local or 10 digits post-+234), and NUBAN (10 digits).
+4. **Data Handling & API Contract:**
+   * Emit the completed data structure matching this JSON format:
+   ```json
+   {
+     "auth": { "email": "", "phone": "", "password": "", "ndpaConsent": true },
+     "identity": { "nin": "", "tin": null, "stateOfResidence": "", "lga": "", "address": "", "sirsCode": "" },
+     "incomeProfile": { "categories": [], "isPaye": true, "employerName": "", "estimatedAnnualGross": 0 },
+     "reliefs": { "pensionEnabled": false, "pfaName": "", "nhfEnabled": false, "annualRentPaid": 0 },
+     "settlementBank": { "bankCode": "", "accountNumber": "", "accountName": "" }
+   }

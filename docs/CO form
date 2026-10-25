@@ -1,0 +1,120 @@
+You are a senior full-stack engineer, enterprise tax architect, and UI/UX systems specialist. Build a production-ready, multi-step onboarding wizard for Nigerian Corporate Tax (Company Income Tax / Value Added Tax) on our platform.
+
+The registration must strictly reflect Nigerian statutory corporate compliance under the Nigeria Tax Act (NTA) and NRS (Nigeria Revenue Service / formerly FIRS) guidelines, integrating dynamic company classification, corporate identity verification, and VAT readiness checks.
+
+---
+
+### 1. Functional Objectives & Step Breakdown
+
+Deliver a 5-step responsive wizard with form-level caching (`sessionStorage`) and strict step-by-step validation.
+
+#### Step 1: Corporate Entity & Incorporation Details
+* **Fields:**
+  * **Entity Type:** Radio selection:
+    * `Private Limited Company (LTD)`
+    * `Public Limited Company (PLC)`
+    * `Limited Liability Partnership (LLP)`
+    * `Registered Business Name / Sole Enterprise` (Inform user: "Sole enterprises are taxed via State PIT, but must register here if crossing the statutory VAT threshold").
+  * **CAC RC / BN Number:** Input mask with prefix detection (`RC-XXXXXX` or `BN-XXXXXX`). Include a simulated CAC verification button that auto-populates the Registered Entity Name.
+  * **Registered Business Name:** Locked on verified CAC match.
+  * **Taxpayer Identification Number (JTB / NRS Corporate TIN):** 10–12 digits (with toggle: "Don't have a Corporate TIN yet? Auto-assign during onboarding").
+  * **Date of Incorporation:** Date picker.
+  * **Principal Place of Business:** Street Address, City, LGA, and State.
+
+#### Step 2: Primary Contact & Authorized Signatory (KYC)
+* **Fields:**
+  * **Signatory Designation:** Select (`Director`, `Company Secretary`, `Chief Financial Officer`, `Appointed Tax Agent / Consultant`).
+  * **Full Legal Name:** Authorized officer's name.
+  * **Signatory NIN:** 11-digit mask with simulated identity match against CAC Director records.
+  * **Official Email Address:** Domain-verified or corporate email for official correspondence.
+  * **Official Phone Number:** +234 mobile number.
+  * **Two-Factor Authentication Setup:** 6-digit OTP verification via SMS or WhatsApp before progressing.
+  * **NDPA & Corporate Authorization Consent:** Checkbox authorizing platform to file tax returns on behalf of the registered entity under the Nigeria Data Protection Act.
+
+#### Step 3: CIT Classification & Financial Parameters
+* Under statutory rules, Company Income Tax rates depend on turnover and asset thresholds:
+  * Small Companies: Gross turnover ≤ ₦100M AND fixed assets ≤ ₦250M (0% CIT exempt).
+  * Medium / Large Companies: > ₦100M turnover (Standard corporate rate).
+* **Fields:**
+  * **Estimated / Actual Annual Gross Turnover (NGN):** Dynamic currency input (`₦`).
+  * **Total Fixed Assets Value (NGN):** Real estate, plant, machinery, and equipment net book value.
+  * **Primary Industry / Sector:** Dropdown (`Information Technology & Software`, `Agriculture & Agro-allied`, `Financial Services & Fintech`, `Manufacturing`, `Oil & Gas`, `Retail & Wholesale`, `Professional Services`).
+  * **Financial Year-End Date:** Dropdown (`December 31st`, `March 31st`, `June 30th`, `September 30th`, `Custom`).
+* **Real-Time Classification Card:** Dynamically evaluate inputs and render a badge:
+  * *Example:* If Turnover ≤ ₦100M and Assets ≤ ₦250M: Display green badge: `Classified as Small Company (0% CIT Rate under NTA Small-Business Relief)`.
+  * *Example:* If Professional Services or Turnover > ₦100M: Display blue badge: `Standard Corporate Assessment Applied`.
+
+#### Step 4: Value Added Tax (VAT) Profiling
+* VAT (7.5%) is required for businesses with annual turnover of ₦25M and above, or those voluntarily electing to register.
+* **Fields:**
+  * **Statutory Threshold Indicator:** Automatic evaluation from Step 3:
+    * If Turnover ≥ ₦25M: Auto-toggle `Mandatory VAT Registration Required`.
+    * If Turnover < ₦25M: Display `Exempt from Mandatory VAT (Turnover < ₦25M)`. Provide an opt-in toggle: `"Voluntarily register for VAT (Recommended for B2B invoice generation)"`.
+  * **Nature of Goods & Services:**
+    * Multi-select chips: `Exempt Goods (Basic food items, medical, educational)` vs. `Standard Taxable Supplies (7.5%)`.
+  * **Existing VAT Registration Number:** Optional input if already issued by NRS.
+  * **Filing Frequency:** Default locked to `Monthly (Due by the 21st of following month)`.
+
+#### Step 5: Corporate Settlement & Account Activation
+* **Fields:**
+  * **Corporate Bank Name:** Dropdown of CBN-licensed commercial banks.
+  * **NUBAN Corporate Account Number:** 10-digit mask.
+  * **Account Name Validation:** Simulated NIBSS name resolution confirming matching registered company name.
+* **Review Summary Drawer / Card:**
+  * Entity Name & RC Number
+  * Designated NRS Tax Office (Tax Controller) assigned by State/LGA
+  * CIT Bracket (0% Small vs. Standard Corporate)
+  * VAT Status (Active VAT Agent vs. Small Business Exempt)
+* **Final Action:** Primary submission button emitting the payload.
+
+---
+
+### 2. Technical Stack & Implementation Constraints
+
+1. **Framework & State:**
+   * React / Next.js (TypeScript).
+   * Form state management using `react-hook-form` with `@hookform/resolvers/zod`.
+   * Separate modular schemas for each step combined into a single `corporateTaxRegistrationSchema`.
+2. **Input Masks & Formatting:**
+   * Nigerian Naira currency formatting (`Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' })`).
+   * Digit masking for RC Number, NIN (11 digits), Corporate TIN (10–12 digits), and NUBAN (10 digits).
+3. **Data Contract (JSON Schema):**
+   * Output payload must conform to this schema:
+   ```json
+   {
+     "entity": {
+       "entityType": "LTD",
+       "rcNumber": "RC-1849201",
+       "companyName": "Acme Technologies Nigeria Ltd",
+       "corporateTin": "24910294-0001",
+       "incorporationDate": "2023-04-15",
+       "registeredAddress": { "street": "", "city": "Ikeja", "lga": "Ikeja", "state": "Lagos" }
+     },
+     "signatory": {
+       "fullName": "Adebayo Okonjo",
+       "designation": "Director",
+       "nin": "12345678901",
+       "email": "tax@acmetech.ng",
+       "phone": "+2348012345678",
+       "ndpaConsent": true
+     },
+     "taxProfile": {
+       "annualTurnover": 45000000,
+       "fixedAssets": 15000000,
+       "sector": "Information Technology & Software",
+       "accountingYearEnd": "December 31st",
+       "citStatus": "SMALL_COMPANY_EXEMPT",
+       "citRate": 0
+     },
+     "vatProfile": {
+       "isVatRegistered": true,
+       "vatNumber": null,
+       "voluntaryRegistration": false,
+       "suppliesExemptItems": false
+     },
+     "banking": {
+       "bankCode": "058",
+       "accountNumber": "0123456789",
+       "accountName": "ACME TECHNOLOGIES NIGERIA LTD"
+     }
+   }

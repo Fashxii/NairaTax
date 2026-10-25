@@ -19,12 +19,12 @@ interface TopicEntry {
 const TOPICS: TopicEntry[] = [
   {
     keywords: ['pit', 'personal income tax', 'income tax rate', 'tax bands', 'how much tax'],
-    answer: `Nigeria's Personal Income Tax (PIT) is computed using 6 progressive bands under the Personal Income Tax Act (PITA):\n\n• First ₦300,000 → 7%\n• Next ₦300,000 → 11%\n• Next ₦500,000 → 15%\n• Next ₦500,000 → 19%\n• Next ₦1,600,000 → 21%\n• Above ₦3,200,000 → 24%\n\nBefore applying these bands, your gross income is reduced by the Consolidated Relief Allowance (CRA) — 20% of gross plus the greater of ₦200,000 or 1% of gross. This means the effective tax rate for most individuals is significantly lower than the marginal rates above.`,
-    followUps: ['What is the CRA?', 'How do I calculate my take-home pay?', 'What deductions can I claim?']
+    answer: `From 1 January 2026, Nigeria's Personal Income Tax (PIT) is computed using 6 progressive bands under the Nigeria Tax Act (NTA) 2025:\n\n• First ₦800,000 → 0%\n• Next ₦2,200,000 → 15%\n• Next ₦9,000,000 → 18%\n• Next ₦13,000,000 → 21%\n• Next ₦25,000,000 → 23%\n• Above ₦50,000,000 → 25%\n\nBefore applying these bands, deduct pension, NHF, NHIS, life assurance premiums, mortgage interest on your home and rent relief (20% of rent, max ₦500,000). The old Consolidated Relief Allowance (CRA) and the 1% minimum tax no longer apply.`,
+    followUps: ['What happened to the CRA?', 'How do I calculate my take-home pay?', 'What deductions can I claim?']
   },
   {
     keywords: ['cra', 'consolidated relief', 'relief allowance'],
-    answer: `The Consolidated Relief Allowance (CRA) is a statutory deduction that reduces your taxable income before PIT bands are applied.\n\n**Formula**: CRA = 20% of Gross Income + MAX(₦200,000, 1% of Gross Income)\n\nFor example, on ₦6,000,000 gross:\n• 20% = ₦1,200,000\n• MAX(₦200,000, ₦60,000) = ₦200,000\n• CRA = ₦1,400,000\n• Taxable Income = ₦6,000,000 − ₦1,400,000 = ₦4,600,000\n\nThe CRA replaced the old personal allowance and children's allowance system under the 2011 PITA amendment.`,
+    answer: `The Consolidated Relief Allowance (CRA) was **abolished from 1 January 2026** by the Nigeria Tax Act 2025. It applied only to tax years up to 2025 (20% of gross + the greater of ₦200,000 or 1% of gross).\n\n**What replaces it**: a **rent relief** of 20% of the annual rent you actually pay, capped at ₦500,000, plus a wider tax-free first band (₦800,000 at 0%).\n\nFor example, on ₦6,000,000 gross paying ₦2,000,000 rent:\n• Rent relief = 20% × ₦2,000,000 = ₦400,000\n• Pension (8%) = ₦480,000\n• Chargeable income = ₦5,120,000\n\nKeep your tenancy agreement and rent receipts as evidence.`,
     followUps: ['What other deductions exist?', 'How is PIT calculated?', 'What about pension contributions?']
   },
   {
@@ -39,12 +39,12 @@ const TOPICS: TopicEntry[] = [
   },
   {
     keywords: ['paye', 'pay as you earn', 'employer', 'payroll tax'],
-    answer: `PAYE (Pay-As-You-Earn) is the system by which employers deduct income tax from employee salaries and remit to the relevant State IRS.\n\n**Employer Obligations**:\n• Deduct PIT from each employee's monthly salary\n• Remit deductions by the 10th of the following month\n• File annual PAYE returns by January 31st\n• Apply CRA and eligible reliefs before computing tax\n\n**Employee Deductions** (mandatory):\n• Pension: 8% of basic + housing + transport\n• NHF: 2.5% of basic salary\n• NHIS: varies by scheme\n\nAll these deductions reduce taxable income before PIT bands are applied.`,
+    answer: `PAYE (Pay-As-You-Earn) is the system by which employers deduct income tax from employee salaries and remit to the relevant State IRS.\n\n**Employer Obligations**:\n• Deduct PIT from each employee's monthly salary\n• Remit deductions by the 10th of the following month\n• File annual PAYE returns by January 31st\n• Apply rent relief and eligible deductions before computing tax\n\n**Employee Deductions** (mandatory):\n• Pension: 8% of basic + housing + transport\n• NHF: 2.5% of basic salary\n• NHIS: varies by scheme\n\nAll these deductions reduce taxable income before PIT bands are applied.`,
     followUps: ['How is pension calculated?', 'What is the NHF contribution?', 'How do I set up payroll?']
   },
   {
     keywords: ['pension', 'pencom', 'contributory pension', 'retirement'],
-    answer: `Under the Pension Reform Act 2014, employees and employers must contribute to a Retirement Savings Account (RSA).\n\n**Contribution Rates**:\n• Employee: minimum 8% of (Basic + Housing + Transport)\n• Employer: minimum 10% of the same base\n• Total: at least 18%\n\n**Tax Benefit**: Employee pension contributions are fully tax-deductible — they reduce your taxable income before CRA and PIT bands are applied.\n\n**Key Rules**:\n• Contributions go to a PFA (Pension Fund Administrator)\n• Access at retirement (age 50+) or after 4 months of unemployment\n• Voluntary contributions above the mandatory rate get tax benefits up to 1/3 of total contribution`,
+    answer: `Under the Pension Reform Act 2014, employees and employers must contribute to a Retirement Savings Account (RSA).\n\n**Contribution Rates**:\n• Employee: minimum 8% of (Basic + Housing + Transport)\n• Employer: minimum 10% of the same base\n• Total: at least 18%\n\n**Tax Benefit**: Employee pension contributions are fully tax-deductible — they reduce your taxable income before PIT bands are applied.\n\n**Key Rules**:\n• Contributions go to a PFA (Pension Fund Administrator)\n• Access at retirement (age 50+) or after 4 months of unemployment\n• Voluntary contributions above the mandatory rate get tax benefits up to 1/3 of total contribution`,
     followUps: ['How does pension reduce my tax?', 'What is NHF?', 'Can I access pension early?']
   },
   {
@@ -59,8 +59,8 @@ const TOPICS: TopicEntry[] = [
   },
   {
     keywords: ['deduction', 'deductions', 'relief', 'tax relief', 'allowable deduction'],
-    answer: `**Allowable Tax Deductions in Nigeria**:\n\n1. **Consolidated Relief Allowance (CRA)** — Automatic: 20% of gross + max(₦200K, 1% of gross)\n2. **Pension Contributions** — 8% employee contribution (mandatory)\n3. **National Housing Fund (NHF)** — 2.5% of basic salary\n4. **NHIS Premiums** — Health insurance contributions\n5. **Life Insurance** — Premiums on life assurance policies\n6. **Mortgage Interest** — On primary residential property\n7. **Disability Allowance** — ₦3M or 20% of gross (if applicable)\n8. **Rent Relief** — Up to ₦500,000 annually with receipts\n9. **Gratuity** — Employer-paid retirement benefits\n10. **Children's Education** — Qualifying tuition expenses\n\nAll deductions must be claimed with valid documentation.`,
-    followUps: ['How do I claim rent relief?', 'What is the CRA formula?', 'Do I need receipts?']
+    answer: `**Allowable PIT Deductions (Nigeria Tax Act 2025, from 2026)**:\n\n1. **Pension Contributions** — 8% employee contribution to your RSA\n2. **National Housing Fund (NHF)** — 2.5% of basic salary\n3. **NHIS / Health Insurance** — Premiums under the national scheme\n4. **Life Assurance / Annuity Premiums** — Paid for yourself or spouse\n5. **Mortgage Interest** — On your owner-occupied residential home\n6. **Rent Relief** — 20% of annual rent paid, capped at ₦500,000\n\nThe Consolidated Relief Allowance (CRA) and the 1% minimum tax were abolished from 2026. All deductions must be claimed with valid documentation.`,
+    followUps: ['How do I claim rent relief?', 'What happened to the CRA?', 'Do I need receipts?']
   },
   {
     keywords: ['cit', 'company income tax', 'corporate tax', 'business tax'],
@@ -126,15 +126,15 @@ export function getAdvisorResponse(query: string): AdvisorResponse {
   }
 
   return {
-    answer: `Thank you for your question. While I don't have a specific pre-written answer for that topic, here's what I'd recommend:\n\n1. **Check the Tax Guides** tab for comprehensive Nigerian tax documentation\n2. **Use the Quick Calculator** to model your specific tax scenario\n3. **Visit FIRS.gov.ng** for official regulatory guidance\n\nCommon topics I can help with include: PIT rates, CRA formula, VAT rules, PAYE obligations, pension contributions, filing deadlines, TCC requirements, withholding tax, and allowable deductions.\n\nTry asking about one of these topics!`,
-    followUps: ['What is Personal Income Tax?', 'How do I calculate my CRA?', 'What are the filing deadlines?'],
+    answer: `Thank you for your question. While I don't have a specific pre-written answer for that topic, here's what I'd recommend:\n\n1. **Check the Tax Guides** tab for comprehensive Nigerian tax documentation\n2. **Use the Quick Calculator** to model your specific tax scenario\n3. **Visit FIRS.gov.ng** for official regulatory guidance\n\nCommon topics I can help with include: PIT rates, rent relief (which replaced CRA), VAT rules, PAYE obligations, pension contributions, filing deadlines, TCC requirements, withholding tax, and allowable deductions.\n\nTry asking about one of these topics!`,
+    followUps: ['What is Personal Income Tax?', 'What happened to the CRA?', 'What are the filing deadlines?'],
   };
 }
 
 /** Predefined quick-ask questions for the sidebar */
 export const QUICK_ASK_QUESTIONS = [
   'What is the Personal Income Tax (PIT) rate?',
-  'How do I calculate my CRA?',
+  'What happened to the CRA?',
   'What is the VAT rate in Nigeria?',
   'How do I get a Tax Clearance Certificate?',
   'What are PAYE obligations for employers?',

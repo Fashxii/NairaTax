@@ -1,9 +1,14 @@
 import { useState, memo } from 'react';
 import { motion } from 'motion/react';
 import { TrendingUp, ArrowUpRight, Sparkles } from 'lucide-react';
-import { DEDUCTION_AMOUNTS } from '../../utils/taxEngine';
+import { DEDUCTION_AMOUNTS, applyProgressiveBands, calculateRentRelief, RENT_RELIEF_CAP } from '../../utils/taxEngine';
+import { useAppContext } from '../../AppShell';
+import { useStatutoryOverrides, activeApprovedReliefs, approvedReliefTotal } from '../../utils/statutoryOverrides';
 
 const TaxPlannerTab = memo(function TaxPlannerTab() {
+  const { session } = useAppContext();
+  const overrides = useStatutoryOverrides(session?.contactMethod);
+  const approvedReliefs = activeApprovedReliefs(overrides);
   const [plannerIncome, setPlannerIncome] = useState<string>('4500000');
   const [plannerExpenses, setPlannerExpenses] = useState<string>('1200000');
   const [plannerOtherDeductions, setPlannerOtherDeductions] = useState<string>('300000');
@@ -13,26 +18,26 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
   const [scenarioLifeAssurance, setScenarioLifeAssurance] = useState(false);
   const [scenarioNHF, setScenarioNHF] = useState(false);
   const [scenarioNHIS, setScenarioNHIS] = useState(false);
-  const [scenarioCharity, setScenarioCharity] = useState(false);
-  const [scenarioChildren, setScenarioChildren] = useState(false);
-  const [scenarioDependantRelative, setScenarioDependantRelative] = useState(false);
-  const [scenarioDisabled, setScenarioDisabled] = useState(false);
+  const [scenarioRentRelief, setScenarioRentRelief] = useState(false);
   const [scenarioMortgageInterest, setScenarioMortgageInterest] = useState(false);
   const [scenarioBondExempt, setScenarioBondExempt] = useState(false);
 
+  // Planner assumes rent of ~20% of income when the rent-relief scenario is on.
+  const plannerRentRelief = calculateRentRelief((Number(plannerIncome) || 0) * 0.2);
+
+  // Reliefs recognised under the Nigeria Tax Act 2025 (from 1 Jan 2026).
+  // Pre-2026 PITA allowances (children, dependant relative, disability,
+  // charity) were removed as they no longer reduce PIT.
   const scenarios = [
-    { label: 'Major Business Purchase', description: 'Est. ₦500,000 deduction (Reduces computed tax by ₦35,000)', value: scenarioBusinessPurchase, setter: setScenarioBusinessPurchase },
-    { label: 'Anticipated Q3 Bonus', description: 'Est. ₦1,000,000 income (Adds to expected taxable base)', value: scenarioQ3Bonus, setter: setScenarioQ3Bonus },
-    { label: 'Voluntary Pension Contribution', description: `Est. ₦${DEDUCTION_AMOUNTS.vpc.toLocaleString()} tax-free relief (Reduces taxable income base)`, value: scenarioVpc, setter: setScenarioVpc },
-    { label: 'Life Assurance Premium Relief', description: `Est. ₦${DEDUCTION_AMOUNTS.lifeAssurance.toLocaleString()} policy deduction (Sec. 33 PITA exempt)`, value: scenarioLifeAssurance, setter: setScenarioLifeAssurance },
-    { label: 'National Housing Fund (NHF)', description: `Est. ₦${DEDUCTION_AMOUNTS.nhf.toLocaleString()} annual deduction (Statutory contribution relief)`, value: scenarioNHF, setter: setScenarioNHF },
-    { label: 'National Health Insurance (NHIS)', description: `Est. ₦${DEDUCTION_AMOUNTS.nhis.toLocaleString()} medical premium deduction (100% tax exempt)`, value: scenarioNHIS, setter: setScenarioNHIS },
-    { label: 'Charitable Relief Donation', description: `Est. ₦${DEDUCTION_AMOUNTS.charity.toLocaleString()} donation (Approved statutory endowment relief)`, value: scenarioCharity, setter: setScenarioCharity },
-    { label: 'Children Allowance (Max 4)', description: `Est. ₦${DEDUCTION_AMOUNTS.children.toLocaleString()} deduction (₦25k standard relief per child up to 4)`, value: scenarioChildren, setter: setScenarioChildren },
-    { label: 'Dependant Relative Relief', description: `Est. ₦${DEDUCTION_AMOUNTS.dependantRelative.toLocaleString()} deduction (₦20k elderly/incapacitated relative relief)`, value: scenarioDependantRelative, setter: setScenarioDependantRelative },
-    { label: 'Disabled Person Special Relief', description: `Est. ₦${DEDUCTION_AMOUNTS.disabled.toLocaleString()} deduction (Additional allowance for statutory disability)`, value: scenarioDisabled, setter: setScenarioDisabled },
-    { label: 'Mortgage Interest Relief', description: `Est. ₦${DEDUCTION_AMOUNTS.mortgageInterest.toLocaleString()} deduction (Owner-occupied residential property loan interest)`, value: scenarioMortgageInterest, setter: setScenarioMortgageInterest },
-    { label: 'Government Bonds & T-Bills Exemption', description: `Est. ₦${DEDUCTION_AMOUNTS.bondExempt.toLocaleString()} deduction (Investment income 100% tax exempt)`, value: scenarioBondExempt, setter: setScenarioBondExempt },
+    { label: 'Major Business Purchase', description: 'Est. â‚¦500,000 allowable business expense (Reduces taxable income)', value: scenarioBusinessPurchase, setter: setScenarioBusinessPurchase },
+    { label: 'Anticipated Q3 Bonus', description: 'Est. â‚¦1,000,000 income (Adds to expected taxable base)', value: scenarioQ3Bonus, setter: setScenarioQ3Bonus },
+    { label: 'Voluntary Pension Contribution', description: `Est. â‚¦${DEDUCTION_AMOUNTS.vpc.toLocaleString()} contribution to your RSA (Deductible pension contribution)`, value: scenarioVpc, setter: setScenarioVpc },
+    { label: 'Life Assurance / Annuity Premium', description: `Est. â‚¦${DEDUCTION_AMOUNTS.lifeAssurance.toLocaleString()} premium for you or your spouse (NTA 2025 deduction)`, value: scenarioLifeAssurance, setter: setScenarioLifeAssurance },
+    { label: 'National Housing Fund (NHF)', description: `Est. â‚¦${DEDUCTION_AMOUNTS.nhf.toLocaleString()} annual deduction (Statutory contribution relief)`, value: scenarioNHF, setter: setScenarioNHF },
+    { label: 'National Health Insurance (NHIS)', description: `Est. â‚¦${DEDUCTION_AMOUNTS.nhis.toLocaleString()} health insurance premium deduction`, value: scenarioNHIS, setter: setScenarioNHIS },
+    { label: 'Rent Relief', description: `Est. â‚¦${plannerRentRelief.toLocaleString()} (20% of rent â‰ˆ 20% of income, capped at â‚¦${RENT_RELIEF_CAP.toLocaleString()})`, value: scenarioRentRelief, setter: setScenarioRentRelief },
+    { label: 'Mortgage Interest Relief', description: `Est. â‚¦${DEDUCTION_AMOUNTS.mortgageInterest.toLocaleString()} deduction (Owner-occupied residential property loan interest)`, value: scenarioMortgageInterest, setter: setScenarioMortgageInterest },
+    { label: 'Government Bonds & T-Bills Exemption', description: `Est. â‚¦${DEDUCTION_AMOUNTS.bondExempt.toLocaleString()} interest income excluded (Exempt investment income)`, value: scenarioBondExempt, setter: setScenarioBondExempt },
   ];
 
   // Compute projected liability
@@ -40,41 +45,21 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
   const exp = Number(plannerExpenses) || 0;
   const oth = Number(plannerOtherDeductions) || 0;
   const bonusVal = scenarioQ3Bonus ? 1000000 : 0;
-  let baseNet = inc + bonusVal - exp - oth;
+  let baseNet = Math.max(0, inc + bonusVal - exp - oth);
 
+  if (scenarioBusinessPurchase) baseNet = Math.max(0, baseNet - 500000);
   if (scenarioVpc) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.vpc);
   if (scenarioLifeAssurance) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.lifeAssurance);
   if (scenarioNHF) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.nhf);
   if (scenarioNHIS) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.nhis);
-  if (scenarioCharity) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.charity);
-  if (scenarioChildren) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.children);
-  if (scenarioDependantRelative) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.dependantRelative);
-  if (scenarioDisabled) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.disabled);
+  if (scenarioRentRelief) baseNet = Math.max(0, baseNet - plannerRentRelief);
   if (scenarioMortgageInterest) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.mortgageInterest);
   if (scenarioBondExempt) baseNet = Math.max(0, baseNet - DEDUCTION_AMOUNTS.bondExempt);
+  // Admin-approved statutory reliefs for this profile (always applied)
+  baseNet = Math.max(0, baseNet - approvedReliefTotal(overrides));
 
-  const calculateProgressiveTax = (netAmount: number) => {
-    let remaining = netAmount;
-    let tax = 0;
-    const bands = [
-      { limit: 500000, rate: 0.06 },
-      { limit: 1000000, rate: 0.10 },
-      { limit: 1500000, rate: 0.12 },
-      { limit: Infinity, rate: 0.14 }
-    ];
-    for (const b of bands) {
-      if (remaining <= 0) break;
-      const taxable = Math.min(remaining, b.limit);
-      tax += taxable * b.rate;
-      remaining -= taxable;
-    }
-    return tax;
-  };
-
-  let computedTax = calculateProgressiveTax(baseNet);
-  if (scenarioBusinessPurchase) {
-    computedTax = Math.max(0, computedTax - 35000);
-  }
+  // NTA 2025 progressive bands from the shared engine
+  const computedTax = applyProgressiveBands(baseNet).annualTax;
 
   const activeList: string[] = [];
   if (scenarioBusinessPurchase) activeList.push("Business Purchase");
@@ -82,12 +67,10 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
   if (scenarioLifeAssurance) activeList.push("Life Assurance");
   if (scenarioNHF) activeList.push("NHF");
   if (scenarioNHIS) activeList.push("NHIS");
-  if (scenarioCharity) activeList.push("Charitable Donation");
-  if (scenarioChildren) activeList.push("Children Allowance");
-  if (scenarioDependantRelative) activeList.push("Dependant Relative Relief");
-  if (scenarioDisabled) activeList.push("Disabled Relief");
+  if (scenarioRentRelief) activeList.push("Rent Relief");
   if (scenarioMortgageInterest) activeList.push("Mortgage Interest Relief");
   if (scenarioBondExempt) activeList.push("Government Bonds Exemption");
+  approvedReliefs.forEach((r) => activeList.push(`${r.label} (admin-approved)`));
 
   return (
     <motion.section
@@ -120,7 +103,7 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
                 <div key={field.label} className="space-y-1.5">
                   <label className="text-[10px] font-bold text-on-surface uppercase tracking-wider block">{field.label}</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">₦</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">â‚¦</span>
                     <input
                       type="number"
                       value={field.value}
@@ -182,14 +165,14 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
               <p className="text-[11px] text-neutral-300 mt-1">Projected for Q3 2026</p>
               
               <p className="text-3xl font-black font-mono text-white mt-4">
-                ₦{computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                â‚¦{computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
 
             <div className="mt-8 pt-4 border-t border-white/20 relative z-10 flex justify-between items-end">
               <div>
                 <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-wider block">Current Year Total</span>
-                <span className="font-mono font-bold text-sm text-white mt-1 block">₦1,200,000.00</span>
+                <span className="font-mono font-bold text-sm text-white mt-1 block">â‚¦1,200,000.00</span>
               </div>
               <div className="flex items-center text-accent-green bg-accent-green/10 px-2 py-1 rounded-lg border border-accent-green/20">
                 <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
@@ -208,7 +191,7 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
                 </span>
               ) : (
                 <span>
-                  Pro Tip: Try toggling <strong>"Voluntary Pension Contribution"</strong> or <strong>"Life Assurance Premium"</strong> to see how approved FIRS reliefs can reduce your Q3 PIT liabilities!
+                  Pro Tip: Try toggling <strong>"Voluntary Pension Contribution"</strong> or <strong>"Life Assurance Premium"</strong> to see how approved NRS reliefs can reduce your Q3 PIT liabilities!
                 </span>
               )}
             </p>

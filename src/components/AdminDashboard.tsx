@@ -85,8 +85,8 @@ export default function AdminDashboard() {
         email: u.email,
         role: u.role as AdminRole,
         status: u.isActive ? 'active' : 'suspended',
-        createdAt: u.createdAt.split('T')[0],
-        lastLogin: u.lastLogin ? u.lastLogin.split('T')[0] : undefined,
+        createdAt: typeof u.createdAt === 'string' && u.createdAt.includes('T') ? u.createdAt.split('T')[0] : (String(u.createdAt || '—')),
+        lastLogin: typeof u.lastLogin === 'string' && u.lastLogin.includes('T') ? u.lastLogin.split('T')[0] : (u.lastLogin ? String(u.lastLogin) : undefined),
       }));
   };
 
