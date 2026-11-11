@@ -1,6 +1,8 @@
 export type AccountType = 'individual' | 'business';
 export type SystemRole = 'user' | 'admin';
-export type AdminRole = 'super_admin' | 'content_manager' | 'reviewer';
+/** Roles shipped with the app. Custom roles created in the admin console are plain strings. */
+export type BuiltInAdminRole = 'super_admin' | 'content_manager' | 'reviewer' | 'support_agent' | 'finance_auditor';
+export type AdminRole = BuiltInAdminRole | (string & {});
 
 export interface UserSession {
   accountType: AccountType;
@@ -14,7 +16,7 @@ export interface UserSession {
   taxId?: string;
 }
 
-export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'cms' | 'invoicing' | 'tcc' | 'payroll' | 'cit' | 'wht' | 'stamp-cgt';
+export type DashboardTab = 'overview' | 'calculator' | 'filing-history' | 'education' | 'settings' | 'planner' | 'invoicing' | 'tcc' | 'payroll' | 'cit' | 'wht' | 'stamp-cgt' | 'nrs-returns';
 export type AdminDashboardTab = 'users' | 'roles' | 'cms' | 'tcc-approvals' | 'settings';
 
 export interface SyncTransaction {

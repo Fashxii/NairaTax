@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { saveContent, usePublishedContent } from '../admin/platformStore';
 
 // Define the shape of our CMS content
 export interface AppContent {
@@ -54,9 +55,17 @@ const defaultContent: AppContent = {
 interface ContentContextType {
   content: AppContent;
   updateContent: (section: keyof AppContent, key: string, value: string) => void;
+  /** Publish the whole content object to Firestore so every visitor sees it. */
+  publishContent: (next: AppContent, actorEmail: string) => Promise<void>;
+  /** When the published copy was last changed (ISO) and by whom, if known. */
+  publishedMeta: { updatedAt?: string; updatedBy?: string } | null;
 }
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
+
+export function getDefaultContent(): AppContent {
+  return mergeContent(null);
+}
 
 /** Merge saved CMS content over defaults so missing or blank fields fall back. */
 export function mergeContent(saved: unknown): AppContent {
@@ -78,6 +87,7 @@ export function mergeContent(saved: unknown): AppContent {
 }
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Local copy = cache of the last published content (instant first paint, offline).
   const [content, setContent] = useState<AppContent>(() => {
     try {
       const saved = localStorage.getItem('diyTax9ja_cms_content');
@@ -86,6 +96,13 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return mergeContent(null);
     }
   });
+  const published = usePublishedContent();
+  const raw = published.value as (Partial<AppContent> & { updatedAt?: string; updatedBy?: string }) | null;
+
+  // Published content in Firestore is the source of truth for every visitor.
+  useEffect(() => {
+    if (published.loaded && published.exists && raw) setContent(mergeContent(raw));
+  }, [published.loaded, published.exists, raw]);
 
   useEffect(() => {
     localStorage.setItem('diyTax9ja_cms_content', JSON.stringify(content));
@@ -101,8 +118,20 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
   };
 
+  const publishContent = async (next: AppContent, actorEmail: string) => {
+    await saveContent(next, actorEmail);
+    setContent(next);
+  };
+
   return (
-    <ContentContext.Provider value={{ content, updateContent }}>
+    <ContentContext.Provider
+      value={{
+        content,
+        updateContent,
+        publishContent,
+        publishedMeta: raw ? { updatedAt: raw.updatedAt, updatedBy: raw.updatedBy } : null,
+      }}
+    >
       {children}
     </ContentContext.Provider>
   );

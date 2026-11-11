@@ -13,7 +13,7 @@ import { getStored, setStored } from './store';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type UserRole = 'taxpayer' | 'super_admin' | 'content_manager' | 'reviewer';
+export type UserRole = 'taxpayer' | 'super_admin' | 'content_manager' | 'reviewer' | 'support_agent' | 'finance_auditor' | (string & {});
 export type AccountType = 'individual' | 'business';
 
 export interface RegisteredUser {
