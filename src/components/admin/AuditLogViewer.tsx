@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileCode, Download, Search, X, Eye, RefreshCw } from 'lucide-react';
 import { useToast } from '../Toast';
-import { fetchCombinedAuditLogs, AuditLogEntry } from '../../utils/auditLogger';
+import { fetchCombinedAuditLogs, AuditLogEntry, AUDIT_MODULES } from '../../utils/auditLogger';
+import { usePermissions } from '../../admin/usePermissions';
 
 export type { AuditLogEntry };
 
 export default function AuditLogViewer() {
   const { showToast } = useToast();
+  const canExport = usePermissions().can('audit.export');
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,9 +83,9 @@ export default function AuditLogViewer() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 border border-outline-variant rounded-2xl shadow-xs">
         <div>
-          <h3 className="text-lg font-black text-primary-container tracking-tight">Immutable System Audit Logs</h3>
+          <h3 className="text-lg font-black text-primary-container tracking-tight">Audit Trail</h3>
           <p className="text-xs text-on-surface-variant mt-1">
-            Complete compliance trail capturing administrative actions, parameter diffs, and security events.
+            Platform-wide, append-only record of staff actions (Firestore) plus email delivery events. Entries marked “local” exist only in this browser.
           </p>
         </div>
 
@@ -97,6 +99,7 @@ export default function AuditLogViewer() {
             <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
+          {canExport && (
           <button
             onClick={exportCSV}
             className="px-4 py-2 bg-primary-container hover:bg-primary-container/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
@@ -104,6 +107,7 @@ export default function AuditLogViewer() {
             <Download className="w-4 h-4 text-accent-green" />
             <span>Export Audit Log CSV</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -127,10 +131,7 @@ export default function AuditLogViewer() {
             className="bg-surface-container-low border border-outline-variant/60 rounded-lg px-3 py-2 text-xs font-semibold text-on-surface cursor-pointer focus:outline-none"
           >
             <option value="ALL">All Modules</option>
-            <option value="System Config">System Config</option>
-            <option value="User Management">User Management</option>
-            <option value="Security & API">Security &amp; API</option>
-            <option value="Filing Engine">Filing Engine</option>
+            {AUDIT_MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
           <select

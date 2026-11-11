@@ -1,5 +1,9 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// NOTE: NOT LIVE. The app currently stores data in Firestore (decision recorded in
+// docs/NRS_REV360_IMPLEMENTATION.md). This schema is kept as the target for a future
+// Postgres migration and is not used by any running code.
 
 generator client {
   provider = "prisma-client-js"

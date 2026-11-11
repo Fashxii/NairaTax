@@ -6,16 +6,16 @@ import { useSession } from '../context/SessionContext';
 import { useNavigate } from 'react-router-dom';
 import { sendOTPEmail, verifyOTP } from '../utils/otpService';
 import { findUserByEmail } from '../utils/authStore';
-import type { AdminRole } from '../types';
-
-const STAFF_ROLES: AdminRole[] = ['super_admin', 'content_manager', 'reviewer'];
 
 /**
  * Admin & Staff login — email one-time code.
  *
  * No passwords or roles live in the browser bundle. The verifyOTP Cloud
  * Function proves email ownership and returns the account's role, which is
- * resolved server-side (bootstrap super admins + users/{email}.role).
+ * resolved server-side (bootstrap super admins + users/{email}.role, validated
+ * against the built-in and custom roles in platform_config/rbac). Any role
+ * other than "taxpayer" is a staff role; what it can do is decided by the
+ * permission matrix.
  */
 import { getStored } from '../utils/store';
 import { Clock } from 'lucide-react';
@@ -48,6 +48,10 @@ export default function AdminGateway() {
         setError(res.error);
         return;
       }
+      if (res.needsRegistration) {
+        setError('There is no staff account for this email. Ask a Super Admin to provision you.');
+        return;
+      }
       clearExpiredReason();
       setStep('code');
     } catch (err: any) {
@@ -72,8 +76,8 @@ export default function AdminGateway() {
         return;
       }
 
-      const role = result.user?.role as AdminRole | undefined;
-      if (!role || !STAFF_ROLES.includes(role)) {
+      const role = typeof result.user?.role === 'string' ? result.user.role : undefined;
+      if (!role || role === 'taxpayer') {
         setError('This account does not have staff access.');
         return;
       }
@@ -91,7 +95,7 @@ export default function AdminGateway() {
       }));
       sessionStorage.setItem('adminRole', role);
 
-      navigate(role === 'super_admin' ? '/admin/super' : '/admin/dashboard');
+      navigate('/admin/dashboard');
     } catch {
       setError('Authentication failed. Please try again.');
     } finally {

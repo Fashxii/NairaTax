@@ -4,6 +4,7 @@ import {
   Landmark, RefreshCw, CheckCircle2, Download, Lock, Sparkles, FileSpreadsheet, X
 } from 'lucide-react';
 import { SyncTransaction } from '../types';
+import { usePlatformSettings } from '../admin/platformStore';
 
 interface BankSyncPanelProps {
   onTransactionsSynced?: (count: number, amount: number) => void;
@@ -28,7 +29,14 @@ const BANK_EXPENSE_TEMPLATES = [
   { merchant: 'Audit & Tax Advisory Fees', category: 'Professional Services', amount: 120000, isDeductible: true }
 ];
 
-export default function BankSyncPanel({ onTransactionsSynced, onAddTransactions }: BankSyncPanelProps) {
+export default function BankSyncPanel(props: BankSyncPanelProps) {
+  // Admin feature flag: platform_config/settings.flags.bankSync
+  const { flags } = usePlatformSettings();
+  if (!flags.bankSync) return null;
+  return <BankSyncPanelInner {...props} />;
+}
+
+function BankSyncPanelInner({ onTransactionsSynced, onAddTransactions }: BankSyncPanelProps) {
   const [syncState, setSyncState] = useState<'idle' | 'selecting' | 'connecting' | 'syncing' | 'reviewing' | 'done'>('idle');
   const [selectedBank, setSelectedBank] = useState<typeof NIGERIAN_BANKS[0] | null>(null);
   const [pendingTransactions, setPendingTransactions] = useState<SyncTransaction[]>([]);

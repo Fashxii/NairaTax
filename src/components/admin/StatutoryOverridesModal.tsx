@@ -86,7 +86,7 @@ export default function StatutoryOverridesModal({ user, actorEmail, onClose }: P
     try {
       const saved = await saveStatutoryOverrides(user.email, draft, actorEmail);
       recordAuditLog({
-        actorName: 'Super Admin',
+        actorName: actorEmail,
         actorEmail,
         action: 'UPDATE_STATUTORY_OVERRIDES',
         module: 'User Management',
@@ -97,7 +97,7 @@ export default function StatutoryOverridesModal({ user, actorEmail, onClose }: P
       showToast('success', 'Statutory status updated', `Overrides saved for ${user.fullName}.`);
       onClose();
     } catch (err: any) {
-      showToast('error', 'Save failed', err?.message || 'Only super admins can change statutory overrides.');
+      showToast('error', 'Save failed', err?.message || 'Your role lacks the statutory overrides permission.');
     } finally {
       setSaving(false);
     }

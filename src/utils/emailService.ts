@@ -10,6 +10,17 @@
 
 import { getStored, setStored } from './store';
 import { renderEmail, getTemplate } from './emailTemplates';
+import { auth } from '../lib/firebase';
+
+/** Email endpoints are staff-only: send the Firebase ID token so the function can check permissions. */
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const token = await auth?.currentUser?.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch { /* unauthenticated — the server will reject */ }
+  return headers;
+}
 import type {
   SMTPSettings,
   SMTPPreset,
@@ -156,7 +167,7 @@ export async function sendEmail(payload: EmailDispatchPayload): Promise<EmailDis
     // Attempt server dispatch
     const res = await fetch('/api/email/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({
         ...payload,
         renderedSubject: subject,
@@ -252,7 +263,7 @@ export async function testSMTPConnection(
   try {
     const res = await fetch('/api/email/test-smtp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ settings, testEmail }),
     });
 

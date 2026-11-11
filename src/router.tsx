@@ -15,9 +15,8 @@ import CorporateWizard from './components/registration/corporate/CorporateWizard
 import ComplianceLink from './components/ComplianceLink';
 import Dashboard from './components/Dashboard';
 import AdminGateway from './components/AdminGateway';
-import AdminDashboard from './components/AdminDashboard';
 import SuperAdminDashboard from './components/admin/SuperAdminDashboard';
-import { AuthGuard, AdminGuard, SuperAdminGuard } from './components/RouteGuard';
+import { AuthGuard, AdminGuard } from './components/RouteGuard';
 
 /**
  * Route definitions:
@@ -29,8 +28,8 @@ import { AuthGuard, AdminGuard, SuperAdminGuard } from './components/RouteGuard'
  *  /compliance      → NIN Linking
  *  /dashboard       → Main Dashboard (protected — requires verified user)
  *  /admin           → Admin Staff Login
- *  /admin/dashboard → Admin Dashboard Panel (protected — requires admin role)
- *  /admin/super     → Super Admin Master Panel (protected — requires super_admin)
+ *  /admin/dashboard → Admin Console (any staff role; tabs gated by permissions)
+ *  /admin/super     → Same Admin Console (legacy URL kept for bookmarks)
  *  *                → Redirect to /
  */
 export const router = createBrowserRouter([
@@ -45,8 +44,8 @@ export const router = createBrowserRouter([
       { path: 'compliance', element: <ComplianceLink /> },
       { path: 'dashboard', element: <AuthGuard><Dashboard /></AuthGuard> },
       { path: 'admin', element: <AdminGateway /> },
-      { path: 'admin/dashboard', element: <AdminGuard><AdminDashboard /></AdminGuard> },
-      { path: 'admin/super', element: <SuperAdminGuard><SuperAdminDashboard /></SuperAdminGuard> },
+      { path: 'admin/dashboard', element: <AdminGuard><SuperAdminDashboard /></AdminGuard> },
+      { path: 'admin/super', element: <AdminGuard><SuperAdminDashboard /></AdminGuard> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

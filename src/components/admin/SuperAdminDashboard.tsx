@@ -1,24 +1,27 @@
-import { useState } from 'react';
+/**
+ * SuperAdminDashboard.tsx — Unified Admin Console for all staff roles.
+ *
+ * Tabs are shown according to the signed-in staff member's permissions (from
+ * the live RBAC matrix). Server-side, the same permissions are enforced by
+ * firestore.rules and the Cloud Functions, so hiding a tab is a convenience,
+ * not the security boundary.
+ */
+
+import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import {
-  Sliders,
-  Users,
-  Shield,
-  FileText,
-  LogOut,
-  Sun,
-  Moon,
-  ShieldAlert,
-  Key,
-  CheckCircle,
-  Mail,
-  Settings,
-  Layers,
-  BarChart3,
+  LayoutDashboard, Users, KeyRound, Sliders, Scale, Megaphone, Shield, FileText, Mail,
+  LogOut, Sun, Moon, ShieldAlert, Settings, Layers, BarChart3,
 } from 'lucide-react';
 import { useAppContext } from '../../AppShell';
 import { getDisplayName } from '../../utils/userScope';
+import { usePermissions } from '../../admin/usePermissions';
+import type { PermissionId } from '../../admin/permissions';
+import OverviewPanel from './OverviewPanel';
+import RolesPermissionsPanel from './RolesPermissionsPanel';
 import SystemSettingsPanel from './SystemSettingsPanel';
+import TaxRulesPanel from './TaxRulesPanel';
+import ContentPanel from './ContentPanel';
 import UserManagementPanel from './UserManagementPanel';
 import SecurityApiPanel from './SecurityApiPanel';
 import AuditLogViewer from './AuditLogViewer';
@@ -26,19 +29,46 @@ import EmailSettingsPanel from './EmailSettingsPanel';
 import EmailTemplateManager from './EmailTemplateManager';
 import EmailAuditLogViewer from './EmailAuditLogViewer';
 
-export type SuperAdminTab = 'settings' | 'users' | 'security' | 'audit' | 'communications';
+export type ConsoleTab = 'overview' | 'users' | 'roles' | 'settings' | 'tax-rules' | 'content' | 'security' | 'audit' | 'communications';
+/** @deprecated kept for backwards compatibility with older imports */
+export type SuperAdminTab = ConsoleTab;
 export type EmailSubTab = 'smtp' | 'templates' | 'delivery-logs';
+
+const TABS: { id: ConsoleTab; label: string; Icon: typeof Users; /** visible if the user has ANY of these (empty = all staff) */ perms: PermissionId[] }[] = [
+  { id: 'overview', label: 'Overview', Icon: LayoutDashboard, perms: [] },
+  { id: 'users', label: 'Users & Access', Icon: Users, perms: ['users.view'] },
+  { id: 'roles', label: 'Roles & Permissions', Icon: KeyRound, perms: [] },
+  { id: 'settings', label: 'Platform Settings', Icon: Sliders, perms: ['system.flags', 'system.maintenance'] },
+  { id: 'tax-rules', label: 'Tax Rules', Icon: Scale, perms: ['tax_rules.view', 'tax_rules.edit', 'tax_rules.verify'] },
+  { id: 'content', label: 'Content', Icon: Megaphone, perms: ['cms.edit', 'announcements.manage'] },
+  { id: 'security', label: 'Security', Icon: Shield, perms: ['system.security_policy'] },
+  { id: 'audit', label: 'Audit Logs', Icon: FileText, perms: ['audit.view'] },
+  { id: 'communications', label: 'Communications', Icon: Mail, perms: ['email.settings', 'email.templates.view', 'email.logs.view'] },
+];
 
 export default function SuperAdminDashboard() {
   const { session, handleLogout, theme, onToggleTheme } = useAppContext();
-  const [activeTab, setActiveTab] = useState<SuperAdminTab>('settings');
+  const { canAny, can, roleLabel, role } = usePermissions();
+  const [activeTab, setActiveTab] = useState<ConsoleTab>('overview');
   const [emailSubTab, setEmailSubTab] = useState<EmailSubTab>('smtp');
 
-  const onLogout = handleLogout;
+  const visibleTabs = TABS.filter((t) => t.perms.length === 0 || canAny(...t.perms));
+  const emailTabs = ([
+    { id: 'smtp', label: 'SMTP Setup', Icon: Settings, perm: 'email.settings', cls: 'bg-emerald-50 text-emerald-700' },
+    { id: 'templates', label: 'Templates', Icon: Layers, perm: 'email.templates.view', cls: 'bg-violet-50 text-violet-700' },
+    { id: 'delivery-logs', label: 'Delivery Logs', Icon: BarChart3, perm: 'email.logs.view', cls: 'bg-blue-50 text-blue-700' },
+  ] as const).filter((t) => can(t.perm));
+
+  // If permissions change (matrix republished) and the current tab disappears, fall back.
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.id === activeTab)) setActiveTab('overview');
+  }, [visibleTabs, activeTab]);
+  useEffect(() => {
+    if (emailTabs.length && !emailTabs.some((t) => t.id === emailSubTab)) setEmailSubTab(emailTabs[0].id);
+  }, [emailTabs, emailSubTab]);
 
   return (
     <div className="min-h-screen bg-surface-container-low text-on-surface flex flex-col font-sans">
-      {/* 1. Header Navigation Bar */}
       <header className="bg-primary-container text-white px-6 py-4 shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -48,32 +78,23 @@ export default function SuperAdminDashboard() {
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-black text-lg tracking-tight">DIYtax9ja</span>
-                <span className="bg-error/80 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Super Admin
+                <span className={`${role === 'super_admin' ? 'bg-error/80' : 'bg-white/20'} text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider`}>
+                  {roleLabel}
                 </span>
               </div>
-              <p className="text-[10px] text-white/70">Enterprise System Administration &amp; Governance</p>
+              <p className="text-[10px] text-white/70">Admin Console · System Administration &amp; Governance</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <button
-              onClick={onToggleTheme}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-              aria-label="Toggle theme"
-            >
+            <button onClick={onToggleTheme} className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer" aria-label="Toggle theme">
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-200" />}
             </button>
-
             <div className="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-white/10 text-xs">
               <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
               <span className="font-semibold text-white/90">{getDisplayName(session)}</span>
             </div>
-
-            <button
-              onClick={onLogout}
-              className="flex items-center space-x-1.5 bg-error/20 hover:bg-error/30 text-white border border-error/40 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
-            >
+            <button onClick={handleLogout} className="flex items-center space-x-1.5 bg-error/20 hover:bg-error/30 text-white border border-error/40 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer">
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout</span>
             </button>
@@ -81,157 +102,53 @@ export default function SuperAdminDashboard() {
         </div>
       </header>
 
-      {/* 2. Main Executive Content Area */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* KPI Stats Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-outline-variant rounded-2xl p-4 shadow-xs flex items-center gap-3 text-left">
-            <div className="w-10 h-10 rounded-xl bg-primary-container/10 text-primary-container flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Registered Users</p>
-              <p className="text-xl font-black text-primary-container font-mono">25,480</p>
-            </div>
-          </div>
+        <nav className="bg-white border border-outline-variant rounded-2xl p-2 shadow-xs flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Admin console sections">
+          {visibleTabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={activeTab === id}
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === id ? 'bg-primary-container text-white shadow-xs' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
 
-          <div className="bg-white border border-outline-variant rounded-2xl p-4 shadow-xs flex items-center gap-3 text-left">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Active Features</p>
-              <p className="text-xl font-black text-emerald-800 font-mono">4 / 4 Flags</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-outline-variant rounded-2xl p-4 shadow-xs flex items-center gap-3 text-left">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center flex-shrink-0">
-              <Key className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Active API Keys</p>
-              <p className="text-xl font-black text-blue-800 font-mono">3 Keys</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-outline-variant rounded-2xl p-4 shadow-xs flex items-center gap-3 text-left">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Security Alerts</p>
-              <p className="text-xl font-black text-amber-800 font-mono">0 Active Threats</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Tabs Header */}
-        <div className="bg-white border border-outline-variant rounded-2xl p-2 shadow-xs flex items-center gap-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'settings'
-                ? 'bg-primary-container text-white shadow-xs'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <Sliders className="w-4 h-4" />
-            <span>System Defaults</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'users'
-                ? 'bg-primary-container text-white shadow-xs'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>User RBAC &amp; Access</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'security'
-                ? 'bg-primary-container text-white shadow-xs'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <Shield className="w-4 h-4" />
-            <span>Security &amp; API Keys</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'audit'
-                ? 'bg-primary-container text-white shadow-xs'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Audit Logs</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('communications')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'communications'
-                ? 'bg-primary-container text-white shadow-xs'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
-            }`}
-          >
-            <Mail className="w-4 h-4" />
-            <span>Communications</span>
-          </button>
-        </div>
-
-        {/* Tab View Container */}
         <AnimatePresence mode="wait">
-          {activeTab === 'settings' && <SystemSettingsPanel key="settings" />}
+          {activeTab === 'overview' && <OverviewPanel key="overview" onNavigate={setActiveTab} />}
           {activeTab === 'users' && <UserManagementPanel key="users" />}
+          {activeTab === 'roles' && <RolesPermissionsPanel key="roles" />}
+          {activeTab === 'settings' && <SystemSettingsPanel key="settings" />}
+          {activeTab === 'tax-rules' && <TaxRulesPanel key="tax-rules" />}
+          {activeTab === 'content' && <ContentPanel key="content" />}
           {activeTab === 'security' && <SecurityApiPanel key="security" />}
           {activeTab === 'audit' && <AuditLogViewer key="audit" />}
           {activeTab === 'communications' && (
             <div key="communications" className="space-y-5">
-              {/* Email Sub-tab Navigation */}
               <div className="bg-white border border-outline-variant rounded-2xl p-2 shadow-xs flex items-center gap-2">
-                <button
-                  onClick={() => setEmailSubTab('smtp')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    emailSubTab === 'smtp' ? 'bg-emerald-50 text-emerald-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
-                  }`}
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  SMTP Setup
-                </button>
-                <button
-                  onClick={() => setEmailSubTab('templates')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    emailSubTab === 'templates' ? 'bg-violet-50 text-violet-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  Templates
-                </button>
-                <button
-                  onClick={() => setEmailSubTab('delivery-logs')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    emailSubTab === 'delivery-logs' ? 'bg-blue-50 text-blue-700 shadow-xs' : 'text-on-surface-variant hover:bg-surface-container-low'
-                  }`}
-                >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  Delivery Logs
-                </button>
+                {emailTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setEmailSubTab(t.id)}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      emailSubTab === t.id ? `${t.cls} shadow-xs` : 'text-on-surface-variant hover:bg-surface-container-low'
+                    }`}
+                  >
+                    <t.Icon className="w-3.5 h-3.5" />
+                    {t.label}
+                  </button>
+                ))}
               </div>
-
               <AnimatePresence mode="wait">
-                {emailSubTab === 'smtp' && <EmailSettingsPanel key="email-smtp" />}
-                {emailSubTab === 'templates' && <EmailTemplateManager key="email-templates" />}
-                {emailSubTab === 'delivery-logs' && <EmailAuditLogViewer key="email-logs" />}
+                {emailSubTab === 'smtp' && can('email.settings') && <EmailSettingsPanel key="email-smtp" />}
+                {emailSubTab === 'templates' && can('email.templates.view') && <EmailTemplateManager key="email-templates" />}
+                {emailSubTab === 'delivery-logs' && can('email.logs.view') && <EmailAuditLogViewer key="email-logs" />}
               </AnimatePresence>
             </div>
           )}

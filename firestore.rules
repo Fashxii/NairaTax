@@ -1,30 +1,132 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // OTP tokens — only readable/writable by Cloud Functions (server-side)
-    // No client-side direct access
+
+    // ─── Identity & permission helpers ─────────────────────────────────────
+    // Roles arrive as a custom claim set by the verifyOTP Cloud Function.
+    // Granular permissions come from the published matrix in platform_config/rbac
+    // (edited on the admin console's Roles & Permissions tab). super_admin always
+    // passes, so the platform can never be locked out by a bad matrix.
+    function signedIn() {
+      return request.auth != null;
+    }
+    function role() {
+      return request.auth.token.role;
+    }
+    function isSuper() {
+      return signedIn() && role() == 'super_admin';
+    }
+    function isStaff() {
+      return signedIn() && role() is string && role() != 'taxpayer';
+    }
+    function rbacPath() {
+      return /databases/$(database)/documents/platform_config/rbac;
+    }
+    function hasPerm(p) {
+      return isSuper() || (
+        isStaff()
+        && exists(rbacPath())
+        && p in get(rbacPath()).data.roles.get(role(), {}).get('permissions', [])
+      );
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // OTP tokens & rate limits — Cloud Functions only.
     match /otp_tokens/{email} {
       allow read, write: if false;
     }
-
-    // Rate limit records — only Cloud Functions can access
     match /otp_rate_limits/{email} {
       allow read, write: if false;
     }
 
-    // User profiles — authenticated users can read their own profile; staff can view users
+    // ─── Users ─────────────────────────────────────────────────────────────
     match /users/{email} {
-      allow read: if request.auth != null && (request.auth.token.email == email || request.auth.uid == email || request.auth.token.role in ['super_admin', 'reviewer', 'content_manager']);
-      allow write: if request.auth != null && request.auth.token.role in ['super_admin'];
+      function isOwner() {
+        return signedIn() && (request.auth.token.email == email || request.auth.uid == email);
+      }
+      function targetIsTaxpayer() {
+        return resource.data.get('role', 'taxpayer') == 'taxpayer';
+      }
+
+      allow read: if isOwner() || hasPerm('users.view');
+
+      // Super Admins can do anything to a user record.
+      allow create, update, delete: if isSuper();
+
       // Owners may record their own NIN-link status and registration profile, and nothing else.
-      allow update: if request.auth != null && request.auth.token.email == email
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isNINLinked', 'nin', 'profile'])
+      allow update: if isOwner()
+        && changedKeys().hasOnly(['isNINLinked', 'nin', 'profile'])
         && (!('profile' in request.resource.data) || request.resource.data.profile is map);
 
-      // Subcollections (filings, transactions, invoices, employees, wht, notifications, user_settings)
+      // Non-super staff, by permission (always limited to taxpayer accounts).
+      allow create: if hasPerm('users.create')
+        && request.resource.data.get('role', 'taxpayer') == 'taxpayer';
+      allow update: if hasPerm('users.suspend') && targetIsTaxpayer()
+        && changedKeys().hasOnly(['isActive', 'updatedAt']);
+      // Assigning roles: never to/from super_admin, never your own role.
+      allow update: if hasPerm('roles.assign')
+        && resource.data.get('role', 'taxpayer') != 'super_admin'
+        && request.resource.data.role != 'super_admin'
+        && request.auth.token.email != email
+        && changedKeys().hasOnly(['role', 'updatedAt']);
+      allow update: if hasPerm('overrides.statutory') && targetIsTaxpayer()
+        && changedKeys().hasOnly(['statutoryOverrides']);
+      allow delete: if hasPerm('users.delete') && targetIsTaxpayer();
+
+      // Taxpayer data (user_data/{key}: filings, invoices, payroll, …).
+      // Staff with filings.view may read; only the owner or a Super Admin may write.
+      // tax_ledger is excluded here and governed by the stricter rule below.
       match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null && (request.auth.token.email == email || request.auth.uid == email || request.auth.token.role in ['super_admin', 'reviewer', 'content_manager']);
+        allow read: if subcollection != 'tax_ledger' && (isOwner() || hasPerm('filings.view'));
+        allow write: if subcollection != 'tax_ledger' && (isOwner() || isSuper());
       }
+
+      // NRS tax ledger — one document per tax period (YYYY-MM).
+      // A FILED period is locked: the only permitted change is opening an amendment
+      // (status → AMENDING) without altering the transactions in the same write.
+      match /tax_ledger/{period} {
+        function openingAmendment() {
+          return resource.data.meta.status == 'FILED'
+            && request.resource.data.meta.status == 'AMENDING'
+            && request.resource.data.transactions == resource.data.transactions;
+        }
+        allow read: if isOwner() || hasPerm('filings.view');
+        allow create: if (isOwner() || isSuper()) && period.matches('^[0-9]{4}-[0-9]{2}$');
+        allow update: if (isOwner() || isSuper()) && (resource.data.meta.status != 'FILED' || openingAmendment());
+        allow update: if hasPerm('nrs.unlock_period') && openingAmendment();
+        allow delete: if (isOwner() || isSuper()) && resource.data.meta.status != 'FILED';
+      }
+    }
+
+    // ─── Platform configuration (admin console) ───────────────────────────
+    match /platform_config/{docId} {
+      // settings, content and tax_rules hold no secrets and are needed before
+      // sign-in (maintenance mode, landing copy) and by every taxpayer's engines.
+      allow read: if docId in ['settings', 'content', 'tax_rules'] || (docId == 'rbac' && isStaff());
+
+      allow write: if docId == 'rbac' && hasPerm('roles.manage');
+      allow write: if docId == 'content' && hasPerm('cms.edit');
+      allow write: if docId == 'tax_rules' && (hasPerm('tax_rules.edit') || hasPerm('tax_rules.verify'));
+
+      // settings: each slice needs its own permission.
+      allow create: if docId == 'settings' && isSuper();
+      allow update: if docId == 'settings' && isStaff()
+        && (!('flags' in changedKeys()) || hasPerm('system.flags'))
+        && (!('maintenance' in changedKeys()) || hasPerm('system.maintenance'))
+        && (!('sessionPolicy' in changedKeys()) || hasPerm('system.security_policy'))
+        && (!('announcement' in changedKeys()) || hasPerm('announcements.manage'))
+        && changedKeys().hasOnly(['flags', 'maintenance', 'sessionPolicy', 'announcement', 'updatedAt', 'updatedBy']);
+    }
+
+    // ─── Admin audit trail — append-only ──────────────────────────────────
+    match /admin_audit_logs/{logId} {
+      allow read: if hasPerm('audit.view');
+      allow create: if isStaff()
+        && request.resource.data.actorEmail == request.auth.token.email
+        && request.resource.data.actorRole == role();
+      allow update, delete: if false;
     }
 
     // SMTP settings — server-only (Admin SDK bypasses rules)
@@ -32,9 +134,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Email audit logs — readable by super_admin
+    // Email delivery logs — written by Cloud Functions only.
     match /email_audit_logs/{docId} {
-      allow read: if request.auth != null && request.auth.token.role in ['super_admin'];
+      allow read: if hasPerm('email.logs.view');
       allow write: if false;
     }
   }

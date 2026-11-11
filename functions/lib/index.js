@@ -46,7 +46,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testSMTP = exports.sendEmailFn = exports.verifyOTP = exports.sendOTP = void 0;
+exports.onUserAccessChanged = exports.testSMTP = exports.sendEmailFn = exports.verifyOTP = exports.sendOTP = void 0;
 const functions = __importStar(require("firebase-functions/v2"));
 const admin = __importStar(require("firebase-admin"));
 const nodemailer = __importStar(require("nodemailer"));
@@ -56,9 +56,82 @@ const db = admin.firestore();
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_ATTEMPTS = 5;
 // Staff roles are resolved server-side only. Bootstrap super admins are
-// always granted super_admin; other staff roles come from users/{email}.role.
+// always granted super_admin; other staff roles come from users/{email}.role
+// and must be either a built-in staff role or a custom role defined in the
+// admin console's permission matrix (platform_config/rbac).
 const BOOTSTRAP_SUPER_ADMINS = ["samsontila@gmail.com"];
-const STAFF_ROLES = ["super_admin", "content_manager", "reviewer"];
+const STAFF_ROLES = ["super_admin", "content_manager", "reviewer", "support_agent", "finance_auditor"];
+let rbacCache = null;
+/** Published permission matrix, cached for 60s per instance. */
+async function loadRbacRoles() {
+    var _a;
+    if (rbacCache && Date.now() - rbacCache.at < 60000)
+        return rbacCache.roles;
+    try {
+        const snap = await db.collection("platform_config").doc("rbac").get();
+        const roles = (snap.exists ? (_a = snap.data()) === null || _a === void 0 ? void 0 : _a.roles : null) || {};
+        rbacCache = { roles, at: Date.now() };
+        return roles;
+    }
+    catch (err) {
+        functions.logger.warn("[RBAC] could not load platform_config/rbac", err);
+        return (rbacCache === null || rbacCache === void 0 ? void 0 : rbacCache.roles) || {};
+    }
+}
+/** Effective role for a stored role string: built-in or published custom role, else taxpayer. */
+async function resolveRole(email, storedRole) {
+    if (BOOTSTRAP_SUPER_ADMINS.includes(email))
+        return "super_admin";
+    if (typeof storedRole !== "string" || storedRole === "taxpayer")
+        return "taxpayer";
+    if (STAFF_ROLES.includes(storedRole))
+        return storedRole;
+    const roles = await loadRbacRoles();
+    return roles[storedRole] ? storedRole : "taxpayer";
+}
+async function roleHasPermission(role, permission) {
+    var _a;
+    if (role === "super_admin")
+        return true;
+    if (!role || role === "taxpayer")
+        return false;
+    const roles = await loadRbacRoles();
+    return Array.isArray((_a = roles[role]) === null || _a === void 0 ? void 0 : _a.permissions) && roles[role].permissions.includes(permission);
+}
+async function loadPlatformSettings() {
+    try {
+        const snap = await db.collection("platform_config").doc("settings").get();
+        return snap.data() || {};
+    }
+    catch (_a) {
+        return {};
+    }
+}
+/**
+ * Verify the Firebase ID token in `Authorization: Bearer <token>` and require a
+ * staff permission. Sends 401/403 and returns null when the caller is not allowed.
+ */
+async function requireStaffPermission(req, res, permission) {
+    const header = req.get("Authorization") || "";
+    const match = header.match(/^Bearer (.+)$/);
+    if (!match) {
+        res.status(401).json({ error: "Sign in as staff to use this endpoint." });
+        return null;
+    }
+    try {
+        const decoded = await admin.auth().verifyIdToken(match[1], true);
+        const role = typeof decoded.role === "string" ? decoded.role : "taxpayer";
+        if (!(await roleHasPermission(role, permission))) {
+            res.status(403).json({ error: `Your role lacks the "${permission}" permission.` });
+            return null;
+        }
+        return decoded;
+    }
+    catch (_a) {
+        res.status(401).json({ error: "Your session has expired. Sign in again." });
+        return null;
+    }
+}
 // ─── Helpers ────────────────────────────────────────────────────────
 function generateOTPCode() {
     const array = new Uint32Array(1);
@@ -142,6 +215,7 @@ exports.sendOTP = functions.https.onRequest({
     secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
     region: "us-central1",
 }, async (req, res) => {
+    var _a, _b;
     // Only accept POST
     if (req.method !== "POST") {
         res.status(405).json({ error: "Method Not Allowed" });
@@ -174,6 +248,20 @@ exports.sendOTP = functions.https.onRequest({
         }
         if (isNewRegistration && cleanName.length < 2) {
             res.status(400).json({ error: "Please enter your full name to register." });
+            return;
+        }
+        // Admin console controls: maintenance mode and new sign-ups.
+        const platform = await loadPlatformSettings();
+        const effectiveRole = isNewRegistration ? "taxpayer" : await resolveRole(cleanEmail, userData.role);
+        if (((_a = platform.maintenance) === null || _a === void 0 ? void 0 : _a.enabled) && effectiveRole === "taxpayer") {
+            res.status(503).json({
+                error: platform.maintenance.message || "DIYtax9ja is undergoing maintenance. Please try again later.",
+                maintenance: true,
+            });
+            return;
+        }
+        if (isNewRegistration && ((_b = platform.flags) === null || _b === void 0 ? void 0 : _b.selfRegistration) === false) {
+            res.status(403).json({ error: "New registrations are currently paused." });
             return;
         }
         // Rate limit: max 3 OTP requests per 10 minutes per email
@@ -254,18 +342,11 @@ exports.sendOTP = functions.https.onRequest({
             text: `Your DIYtax9ja verification code is: ${code}. It expires in 5 minutes.`,
         });
         functions.logger.info(`[OTP] Code dispatched to ${cleanEmail}`);
-        const resolvedFullName = userDoc.exists
-            ? (userData.fullName || cleanName)
-            : cleanName;
         const resolvedAccountType = userDoc.exists
             ? (userData.accountType || cleanAccountType)
             : cleanAccountType;
-        const resolvedRole = userDoc.exists
-            ? (userData.role || "taxpayer")
-            : "taxpayer";
-        const resolvedIsNINLinked = userDoc.exists
-            ? (userData.isNINLinked === true)
-            : false;
+        // Only non-sensitive routing data is returned before the code is verified:
+        // role, name and NIN are disclosed by verifyOTP after proof of email ownership.
         res.status(200).json({
             success: true,
             registered: true,
@@ -273,11 +354,7 @@ exports.sendOTP = functions.https.onRequest({
             message: "Verification code sent to your registered email.",
             user: {
                 email: cleanEmail,
-                fullName: resolvedFullName,
                 accountType: resolvedAccountType,
-                role: resolvedRole,
-                isNINLinked: resolvedIsNINLinked,
-                nin: userData.nin || undefined,
             },
         });
     }
@@ -348,11 +425,8 @@ exports.verifyOTP = functions.https.onRequest({
         const userRef = db.collection("users").doc(cleanEmail);
         const userDoc = await userRef.get();
         const userData = userDoc.data() || {};
-        const isBootstrapAdmin = BOOTSTRAP_SUPER_ADMINS.includes(cleanEmail);
         const storedRole = typeof userData.role === "string" ? userData.role : "taxpayer";
-        const role = isBootstrapAdmin
-            ? "super_admin"
-            : STAFF_ROLES.includes(storedRole) ? storedRole : "taxpayer";
+        const role = await resolveRole(cleanEmail, storedRole);
         if (userData.isActive === false) {
             res.status(403).json({ error: "This account has been suspended. Please contact your administrator." });
             return;
@@ -422,6 +496,9 @@ exports.sendEmailFn = functions.https.onRequest({
         res.status(405).json({ error: "Method Not Allowed" });
         return;
     }
+    // Staff only: previously this was an unauthenticated open mail relay.
+    if (!(await requireStaffPermission(req, res, "email.send_test")))
+        return;
     try {
         const { recipientEmail, recipientName, renderedSubject, renderedHtml, templateKey, attachments, replyTo, cc, bcc, } = req.body;
         if (!recipientEmail || !renderedSubject || !renderedHtml) {
@@ -505,7 +582,6 @@ exports.sendEmailFn = functions.https.onRequest({
         functions.logger.error("[Email] sendEmail error:", err);
         res.status(500).json({
             error: "Failed to send email. Please check SMTP configuration.",
-            details: err.message,
         });
     }
 });
@@ -521,10 +597,20 @@ exports.testSMTP = functions.https.onRequest({
         res.status(405).json({ error: "Method Not Allowed" });
         return;
     }
+    // Staff with "email.settings" only: a passing test overwrites the production
+    // SMTP configuration, so this must never be callable anonymously.
+    if (!(await requireStaffPermission(req, res, "email.settings")))
+        return;
     try {
         const { settings, testEmail } = req.body;
         if (!settings || !testEmail) {
             res.status(400).json({ error: "settings and testEmail are required." });
+            return;
+        }
+        // Only standard mail-submission ports (prevents use as a generic port scanner).
+        const ALLOWED_SMTP_PORTS = [25, 465, 587, 2525];
+        if (!ALLOWED_SMTP_PORTS.includes(Number(settings.port)) || typeof settings.host !== "string" || !/^[a-z0-9.-]+$/i.test(settings.host)) {
+            res.status(400).json({ error: `Host must be a hostname and port one of ${ALLOWED_SMTP_PORTS.join(", ")}.` });
             return;
         }
         const steps = [];
@@ -648,8 +734,49 @@ exports.testSMTP = functions.https.onRequest({
         functions.logger.error("[Email] testSMTP error:", err);
         res.status(500).json({
             error: "SMTP test failed with an unexpected error.",
-            details: err.message,
         });
     }
+});
+// ─── Trigger: keep Auth in sync with users/{email} ───────────────────
+// Role changes and suspensions made in the admin console must take effect
+// immediately, not at the user's next sign-in. When `role` or `isActive`
+// changes we re-issue custom claims, revoke refresh tokens (forcing a fresh
+// sign-in within the ID token's 1-hour lifetime) and disable suspended users.
+exports.onUserAccessChanged = functions.firestore.onDocumentUpdated({ document: "users/{email}", region: "us-central1" }, async (event) => {
+    var _a, _b;
+    const before = ((_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data()) || {};
+    const after = ((_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data()) || {};
+    const email = String(event.params.email || "").toLowerCase();
+    const roleChanged = before.role !== after.role;
+    const activeChanged = (before.isActive !== false) !== (after.isActive !== false);
+    if (!roleChanged && !activeChanged)
+        return;
+    let authUser;
+    try {
+        authUser = await admin.auth().getUserByEmail(email);
+    }
+    catch (_c) {
+        return; // never signed in — nothing to revoke; verifyOTP applies the new state at first login
+    }
+    const suspended = after.isActive === false;
+    const role = await resolveRole(email, after.role);
+    await admin.auth().setCustomUserClaims(authUser.uid, { role, email });
+    if (activeChanged) {
+        await admin.auth().updateUser(authUser.uid, { disabled: suspended });
+    }
+    await admin.auth().revokeRefreshTokens(authUser.uid);
+    await db.collection("admin_audit_logs").add({
+        actorName: "System (access sync)",
+        actorEmail: "system@diytax9ja.ng",
+        actorRole: "system",
+        action: suspended && activeChanged ? "AUTH_USER_DISABLED" : activeChanged ? "AUTH_USER_ENABLED" : "AUTH_CLAIMS_REISSUED",
+        module: "Security & API",
+        severity: "WARN",
+        ipAddress: "Cloud Function",
+        timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+        afterState: { email, role, suspended, sessionsRevoked: true },
+        createdAt: new Date().toISOString(),
+    });
+    functions.logger.info(`[Access] ${email}: role=${role} suspended=${suspended}; sessions revoked`);
 });
 //# sourceMappingURL=index.js.map

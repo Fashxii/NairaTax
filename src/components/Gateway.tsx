@@ -17,9 +17,11 @@ import { getStored } from '../utils/store';
 import { validateContact, sanitize } from '../utils/validators';
 import { findUserByEmail, upsertUser } from '../utils/authStore';
 import { sendOTPEmail } from '../utils/otpService';
+import { usePlatformSettings } from '../admin/platformStore';
 
 export default function Gateway() {
   const { handleGatewayNext: onNext, handleGuestDemo: onGuestDemo, theme, onToggleTheme } = useAppContext();
+  const { flags } = usePlatformSettings();
   const { sessionExpiredReason, clearExpiredReason } = useSession();
   const navigate = useNavigate();
   const onAdminLogin = () => navigate('/admin');
@@ -183,6 +185,7 @@ export default function Gateway() {
               <ShieldCheck className="w-3.5 h-3.5 text-accent-green mr-1" />
               <span>Staff Portal</span>
             </button>
+            {flags.selfRegistration && (
             <button 
               id="header-create-account"
               onClick={openSignUp}
@@ -190,6 +193,7 @@ export default function Gateway() {
             >
               Create Account
             </button>
+            )}
             <button 
               onClick={() => handleSmoothScroll('auth-portal')}
               className="bg-[#013220] text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer"
@@ -487,6 +491,7 @@ export default function Gateway() {
                 <p className="text-[10px] text-on-surface-variant/70 leading-relaxed">
                   NDPR Data Security Standards. Your private records are 100% encrypted and protected under Nigerian regulatory acts.
                 </p>
+                {flags.demoAccess && (
                 <button 
                   onClick={() => onGuestDemo?.(accountType)}
                   className="text-xs font-bold text-[#013220] hover:underline flex items-center justify-center mx-auto space-x-1 cursor-pointer mt-1"
@@ -494,6 +499,7 @@ export default function Gateway() {
                   <span>{content.gateway.demoBypassText}</span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-accent-green" />
                 </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -583,6 +589,7 @@ export default function Gateway() {
               >
                 Apply These Reliefs & File
               </button>
+              {flags.demoAccess && (
               <button 
                 onClick={() => onGuestDemo?.('individual')}
                 className="h-11 px-5 bg-[#013220]/10 text-[#013220] text-xs font-bold rounded-lg hover:bg-surface-container-high active:scale-[0.98] transition-all flex items-center justify-center space-x-1 cursor-pointer"
@@ -590,6 +597,7 @@ export default function Gateway() {
                 <span>Launch Interactive Demo Planner</span>
                 <Sparkles className="w-3.5 h-3.5 text-accent-green ml-1" />
               </button>
+              )}
             </div>
           </div>
         </section>

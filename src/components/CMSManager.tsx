@@ -1,11 +1,23 @@
 import React, { useState, useRef } from 'react';
 import { useContent, AppContent } from '../context/ContentContext';
-import { Save, Image as ImageIcon, Link as LinkIcon, Upload as UploadIcon, Check } from 'lucide-react';
+import { Save, Image as ImageIcon, Link as LinkIcon, Upload as UploadIcon, Check, Globe, Lock } from 'lucide-react';
+import { useToast } from './Toast';
+import { usePermissions } from '../admin/usePermissions';
+import { describeWriteError } from '../admin/platformStore';
+import { recordAuditLog } from '../utils/auditLogger';
+
+/** Firestore documents max out at 1 MiB; leave headroom. */
+const MAX_CONTENT_BYTES = 900_000;
+const MAX_IMAGE_BYTES = 250_000;
 
 export default function CMSManager() {
-  const { content, updateContent } = useContent();
+  const { content, publishContent, publishedMeta } = useContent();
+  const { can, actorEmail, actorName } = usePermissions();
+  const { showToast } = useToast();
+  const canEdit = can('cms.edit');
   const [activePage, setActivePage] = useState<keyof AppContent>('gateway');
   const [savedStatus, setSavedStatus] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Local state to manage form fields before they are strictly saved
@@ -24,17 +36,45 @@ export default function CMSManager() {
     });
   };
 
-  const handleSave = () => {
-    Object.entries(formData).forEach(([key, value]) => {
-      updateContent(activePage, key, value as string);
-    });
-    setSavedStatus(true);
-    setTimeout(() => setSavedStatus(false), 3000);
+  const handleSave = async () => {
+    if (!canEdit) return;
+    const next = { ...content, [activePage]: formData } as AppContent;
+    const size = new Blob([JSON.stringify(next)]).size;
+    if (size > MAX_CONTENT_BYTES) {
+      showToast('error', 'Content too large', 'Use image URLs instead of uploaded images to stay under the 900 KB limit.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await publishContent(next, actorEmail);
+      const changed = Object.keys(formData).filter(
+        (k) => (formData as Record<string, string>)[k] !== (content[activePage] as Record<string, string>)[k],
+      );
+      recordAuditLog({
+        actorName,
+        actorEmail,
+        action: 'PUBLISH_SITE_CONTENT',
+        module: 'Content',
+        severity: 'INFO',
+        afterState: { page: activePage, changedFields: changed },
+      });
+      setSavedStatus(true);
+      showToast('success', 'Published', 'Changes are now live for all visitors.');
+      setTimeout(() => setSavedStatus(false), 3000);
+    } catch (err) {
+      showToast('error', 'Not published', describeWriteError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        showToast('warning', 'Image too large', 'Uploaded images must be under 250 KB. Host larger images and paste the URL instead.');
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
@@ -155,6 +195,15 @@ export default function CMSManager() {
       <div>
         <h2 className="text-2xl font-black text-primary-container tracking-tight">Content Management System</h2>
         <p className="text-sm text-on-surface-variant mt-1">Manage public facing texts and dynamic images across the platform.</p>
+        <p className="text-[11px] text-on-surface-variant mt-2 flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5" />
+          {publishedMeta?.updatedAt
+            ? <>Live copy last published {publishedMeta.updatedAt.slice(0, 16).replace('T', ' ')} by {publishedMeta.updatedBy}</>
+            : <>Showing built-in defaults — nothing has been published yet.</>}
+        </p>
+        {!canEdit && (
+          <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> Read-only: your role lacks the “Edit & publish site content” permission.</p>
+        )}
       </div>
 
       {/* Horizontal Page Navigator */}
@@ -180,10 +229,11 @@ export default function CMSManager() {
           <h3 className="text-lg font-bold text-on-surface capitalize">Editing {activePage}</h3>
           <button
             onClick={handleSave}
-            className="h-10 px-5 bg-[#013220] text-white text-xs font-bold rounded-lg hover:opacity-95 active:scale-[0.98] transition-all flex items-center space-x-2 shadow-xs cursor-pointer"
+            disabled={!canEdit || saving}
+            className="h-10 px-5 bg-[#013220] text-white text-xs font-bold rounded-lg hover:opacity-95 active:scale-[0.98] transition-all flex items-center space-x-2 shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {savedStatus ? <Check className="w-4 h-4 text-accent-green" /> : <Save className="w-4 h-4" />}
-            <span>{savedStatus ? 'Saved!' : 'Save Changes'}</span>
+            <span>{saving ? 'Publishing…' : savedStatus ? 'Published!' : 'Publish Changes'}</span>
           </button>
         </div>
 

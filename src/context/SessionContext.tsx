@@ -12,9 +12,23 @@ import { removeStored, getStored, setStored } from '../utils/store';
 import { auth, fbSignOut } from '../lib/firebase';
 import { recordAuditLog } from '../utils/auditLogger';
 import { isDemoSession } from '../utils/demo';
+import { getPlatformSettings } from '../admin/platformStore';
 
+/** Defaults; the live values come from the admin-managed session policy. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours absolute maximum
 export const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;   // 5 minutes of inactivity
+
+/** Absolute session lifetime from platform_config/settings.sessionPolicy. */
+export function getSessionExpiryMs(): number {
+  const hours = getPlatformSettings().sessionPolicy.absoluteHours;
+  return hours > 0 ? hours * 60 * 60 * 1000 : SESSION_EXPIRY_MS;
+}
+
+/** Inactivity timeout from platform_config/settings.sessionPolicy. */
+export function getInactivityTimeoutMs(): number {
+  const minutes = getPlatformSettings().sessionPolicy.inactivityMinutes;
+  return minutes > 0 ? minutes * 60 * 1000 : INACTIVITY_TIMEOUT_MS;
+}
 
 const DEFAULT_SESSION: UserSession = {
   accountType: 'individual',
@@ -102,9 +116,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const lastActive = getStored<number>('session_last_active', 0);
       const now = Date.now();
 
-      if (loginTime > 0 && now - loginTime > SESSION_EXPIRY_MS) {
+      if (loginTime > 0 && now - loginTime > getSessionExpiryMs()) {
         logout('session_expired');
-      } else if (lastActive > 0 && now - lastActive >= INACTIVITY_TIMEOUT_MS) {
+      } else if (lastActive > 0 && now - lastActive >= getInactivityTimeoutMs()) {
         logout('inactivity_5min');
       }
     }
@@ -151,7 +165,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const checkImmediateInactivity = () => {
       if (document.visibilityState === 'visible') {
         const lastActive = getStored<number>('session_last_active', Date.now());
-        if (Date.now() - lastActive >= INACTIVITY_TIMEOUT_MS) {
+        if (Date.now() - lastActive >= getInactivityTimeoutMs()) {
           logout('inactivity_5min');
         } else {
           onUserActivity();
@@ -164,8 +178,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // Periodic heartbeat check every 5 seconds
     const interval = setInterval(() => {
       const lastActive = getStored<number>('session_last_active', Date.now());
-      if (Date.now() - lastActive >= INACTIVITY_TIMEOUT_MS) {
+      if (Date.now() - lastActive >= getInactivityTimeoutMs()) {
         logout('inactivity_5min');
+      }
+      const loginTime = getStored<number>('session_login_time', 0);
+      if (loginTime > 0 && Date.now() - loginTime > getSessionExpiryMs()) {
+        logout('session_expired');
       }
     }, 5000);
 

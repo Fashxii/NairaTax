@@ -5,15 +5,17 @@ import {
   LogOut, ShieldAlert, ShieldCheck, Download, 
   Send, FileText, Info,
   Camera, Check, Upload, X, ArrowRight, Sparkles,
-  Calendar, Sun, Moon, Users, Building, Receipt, Stamp
+  Calendar, Sun, Moon, Users, Building, Receipt, Stamp, Landmark
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
 import InvoiceManager from './InvoiceManager';
 import TCCDashboard from './TCCDashboard';
 import PayrollManager from './PayrollManager';
-import CMSManager from './CMSManager';
 import NotificationPanel from './NotificationPanel';
+import AnnouncementBanner from './AnnouncementBanner';
+import { usePlatformSettings } from '../admin/platformStore';
+import type { FeatureFlag } from '../admin/platformSettings';
 import { useToast } from './Toast';
 import { useAppContext } from '../AppShell';
 import { useUserPersistedState, getDisplayName, getGreetingName, getInitials, isDemoSession } from '../utils/userScope';
@@ -32,6 +34,7 @@ import {
   CITCalculatorTab,
   WHTTrackerTab,
   StampDutyCGTTab,
+  NRSReturnsTab,
   SyncTransaction,
 } from './dashboard/index';
 
@@ -134,8 +137,22 @@ const todayISO = () => new Date().toISOString().split('T')[0];
 export default function Dashboard() {
   const { session, handleLogout: onLogout, handleLinkNINFromDashboard: onLinkNIN, theme, onToggleTheme } = useAppContext();
   const statutoryOverrides = useStatutoryOverrides(session?.contactMethod);
+  // Admin-managed feature flags: a disabled feature's tab is hidden.
+  const platform = usePlatformSettings();
+  const TAB_FLAGS: Partial<Record<DashboardTab, FeatureFlag>> = {
+    planner: 'taxPlanner', education: 'advisor', payroll: 'payroll', 'nrs-returns': 'nrsReturns',
+    cit: 'citCalculator', wht: 'whtTracker', 'stamp-cgt': 'stampDutyCgt', tcc: 'tccReadiness', invoicing: 'eInvoicing',
+  };
+  const isTabEnabled = (tab: DashboardTab) => {
+    const flag = TAB_FLAGS[tab];
+    return !flag || platform.flags[flag];
+  };
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const activeTabDisabled = !isTabEnabled(activeTab);
+  useEffect(() => {
+    if (activeTabDisabled) setActiveTab('overview');
+  }, [activeTabDisabled]);
   const [filings, setFilings] = useUserPersistedState<TaxFiling[]>('filings', [], DEMO_FILINGS);
   const [transactions, setTransactions] = useUserPersistedState<SyncTransaction[]>('transactions', [], DEMO_TRANSACTIONS);
   const [annualGrossIncome, setAnnualGrossIncome] = useUserPersistedState<number>('annual_gross_income', 0, 4200000);
@@ -499,7 +516,7 @@ export default function Dashboard() {
               { tab: 'filing-history' as DashboardTab, icon: History, label: 'Filing History' },
               { tab: 'education' as DashboardTab, icon: BookOpen, label: 'Guides & Advisor' },
               { tab: 'settings' as DashboardTab, icon: Settings, label: 'User Profile' },
-            ].map(({ tab, icon: Icon, label }) => (
+            ].filter(({ tab }) => isTabEnabled(tab)).map(({ tab, icon: Icon, label }) => (
               <button
                 key={tab}
                 role="tab"
@@ -516,7 +533,7 @@ export default function Dashboard() {
               </button>
             ))}
 
-            {accountMode === 'business' && (
+            {accountMode === 'business' && isTabEnabled('payroll') && (
               <button
                 onClick={() => { setActiveTab('payroll'); setIsFilingFlow(false); }}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
@@ -531,15 +548,13 @@ export default function Dashboard() {
             )}
 
             {[
+              { tab: 'nrs-returns' as DashboardTab, icon: Landmark, label: 'NRS Returns' },
               { tab: 'cit' as DashboardTab, icon: Building, label: 'CIT Calculator' },
               { tab: 'wht' as DashboardTab, icon: Receipt, label: 'WHT Tracker' },
               { tab: 'stamp-cgt' as DashboardTab, icon: Stamp, label: 'Stamp Duty & CGT' },
               { tab: 'tcc' as DashboardTab, icon: ShieldCheck, label: 'TCC Readiness' },
               { tab: 'invoicing' as DashboardTab, icon: FileText, label: 'E-Invoicing' },
-              ...(session.systemRole === 'admin' || session.adminRole
-                ? [{ tab: 'cms' as DashboardTab, icon: LayoutDashboard, label: 'CMS Admin' }]
-                : []),
-            ].map(({ tab, icon: Icon, label }) => (
+            ].filter(({ tab }) => isTabEnabled(tab)).map(({ tab, icon: Icon, label }) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); setIsFilingFlow(false); }}
@@ -582,6 +597,7 @@ export default function Dashboard() {
 
       {/* Main Content Area */}
       <main className="flex-grow p-4 md:p-8 overflow-y-auto relative pb-32">
+        <AnnouncementBanner accountType={accountMode === 'business' ? 'business' : 'individual'} />
         {/* Top Header Bar inside Main Area for switchers & bell */}
         <div className="w-full mb-8 flex justify-between items-center bg-white border border-outline-variant/60 rounded-xl px-5 py-3 shadow-xs">
           <div className="flex items-center space-x-2">
@@ -966,10 +982,6 @@ export default function Dashboard() {
               <PayrollManager />
             )}
 
-            {!isFilingFlow && activeTab === 'cms' && (
-              <CMSManager />
-            )}
-
             {!isFilingFlow && activeTab === 'cit' && (
               <CITCalculatorTab />
             )}
@@ -980,6 +992,15 @@ export default function Dashboard() {
 
             {!isFilingFlow && activeTab === 'stamp-cgt' && (
               <StampDutyCGTTab />
+            )}
+
+            {!isFilingFlow && activeTab === 'nrs-returns' && (
+              <NRSReturnsTab
+                smartVaultTransactions={transactions}
+                accountMode={accountMode}
+                taxpayerName={currentTaxpayerFullName}
+                taxId={session.taxId}
+              />
             )}
 
             {!isFilingFlow && activeTab === 'overview' && (
@@ -1032,6 +1053,7 @@ export default function Dashboard() {
       </main>
 
       {/* Floating Action Button (FAB) */}
+      {platform.flags.receiptScanner && (
       <div className="fixed bottom-8 right-8 z-40">
         <button 
           onClick={() => {
@@ -1044,6 +1066,7 @@ export default function Dashboard() {
           <Camera className="w-6 h-6 text-white" />
         </button>
       </div>
+      )}
 
       {/* RECEIPT SCANNER MODAL OVERLAY */}
       <AnimatePresence>
