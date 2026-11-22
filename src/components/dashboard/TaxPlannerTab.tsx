@@ -29,15 +29,15 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
   // Pre-2026 PITA allowances (children, dependant relative, disability,
   // charity) were removed as they no longer reduce PIT.
   const scenarios = [
-    { label: 'Major Business Purchase', description: 'Est. â‚¦500,000 allowable business expense (Reduces taxable income)', value: scenarioBusinessPurchase, setter: setScenarioBusinessPurchase },
-    { label: 'Anticipated Q3 Bonus', description: 'Est. â‚¦1,000,000 income (Adds to expected taxable base)', value: scenarioQ3Bonus, setter: setScenarioQ3Bonus },
-    { label: 'Voluntary Pension Contribution', description: `Est. â‚¦${DEDUCTION_AMOUNTS.vpc.toLocaleString()} contribution to your RSA (Deductible pension contribution)`, value: scenarioVpc, setter: setScenarioVpc },
-    { label: 'Life Assurance / Annuity Premium', description: `Est. â‚¦${DEDUCTION_AMOUNTS.lifeAssurance.toLocaleString()} premium for you or your spouse (NTA 2025 deduction)`, value: scenarioLifeAssurance, setter: setScenarioLifeAssurance },
-    { label: 'National Housing Fund (NHF)', description: `Est. â‚¦${DEDUCTION_AMOUNTS.nhf.toLocaleString()} annual deduction (Statutory contribution relief)`, value: scenarioNHF, setter: setScenarioNHF },
-    { label: 'National Health Insurance (NHIS)', description: `Est. â‚¦${DEDUCTION_AMOUNTS.nhis.toLocaleString()} health insurance premium deduction`, value: scenarioNHIS, setter: setScenarioNHIS },
-    { label: 'Rent Relief', description: `Est. â‚¦${plannerRentRelief.toLocaleString()} (20% of rent â‰ˆ 20% of income, capped at â‚¦${RENT_RELIEF_CAP.toLocaleString()})`, value: scenarioRentRelief, setter: setScenarioRentRelief },
-    { label: 'Mortgage Interest Relief', description: `Est. â‚¦${DEDUCTION_AMOUNTS.mortgageInterest.toLocaleString()} deduction (Owner-occupied residential property loan interest)`, value: scenarioMortgageInterest, setter: setScenarioMortgageInterest },
-    { label: 'Government Bonds & T-Bills Exemption', description: `Est. â‚¦${DEDUCTION_AMOUNTS.bondExempt.toLocaleString()} interest income excluded (Exempt investment income)`, value: scenarioBondExempt, setter: setScenarioBondExempt },
+    { label: 'Major Business Purchase', description: 'Est. ₦500,000 allowable business expense (Reduces taxable income)', value: scenarioBusinessPurchase, setter: setScenarioBusinessPurchase },
+    { label: 'Anticipated Q3 Bonus', description: 'Est. ₦1,000,000 income (Adds to expected taxable base)', value: scenarioQ3Bonus, setter: setScenarioQ3Bonus },
+    { label: 'Voluntary Pension Contribution', description: `Est. ₦${DEDUCTION_AMOUNTS.vpc.toLocaleString()} contribution to your RSA (Deductible pension contribution)`, value: scenarioVpc, setter: setScenarioVpc },
+    { label: 'Life Assurance / Annuity Premium', description: `Est. ₦${DEDUCTION_AMOUNTS.lifeAssurance.toLocaleString()} premium for you or your spouse (NTA 2025 deduction)`, value: scenarioLifeAssurance, setter: setScenarioLifeAssurance },
+    { label: 'National Housing Fund (NHF)', description: `Est. ₦${DEDUCTION_AMOUNTS.nhf.toLocaleString()} annual deduction (Statutory contribution relief)`, value: scenarioNHF, setter: setScenarioNHF },
+    { label: 'National Health Insurance (NHIS)', description: `Est. ₦${DEDUCTION_AMOUNTS.nhis.toLocaleString()} health insurance premium deduction`, value: scenarioNHIS, setter: setScenarioNHIS },
+    { label: 'Rent Relief', description: `Est. ₦${plannerRentRelief.toLocaleString()} (20% of rent ≈ 20% of income, capped at ₦${RENT_RELIEF_CAP.toLocaleString()})`, value: scenarioRentRelief, setter: setScenarioRentRelief },
+    { label: 'Mortgage Interest Relief', description: `Est. ₦${DEDUCTION_AMOUNTS.mortgageInterest.toLocaleString()} deduction (Owner-occupied residential property loan interest)`, value: scenarioMortgageInterest, setter: setScenarioMortgageInterest },
+    { label: 'Government Bonds & T-Bills Exemption', description: `Est. ₦${DEDUCTION_AMOUNTS.bondExempt.toLocaleString()} interest income excluded (Exempt investment income)`, value: scenarioBondExempt, setter: setScenarioBondExempt },
   ];
 
   // Compute projected liability
@@ -103,7 +103,7 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
                 <div key={field.label} className="space-y-1.5">
                   <label className="text-[10px] font-bold text-on-surface uppercase tracking-wider block">{field.label}</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">â‚¦</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold">₦</span>
                     <input
                       type="number"
                       value={field.value}
@@ -165,14 +165,14 @@ const TaxPlannerTab = memo(function TaxPlannerTab() {
               <p className="text-[11px] text-neutral-300 mt-1">Projected for Q3 2026</p>
               
               <p className="text-3xl font-black font-mono text-white mt-4">
-                â‚¦{computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₦{computedTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
 
             <div className="mt-8 pt-4 border-t border-white/20 relative z-10 flex justify-between items-end">
               <div>
                 <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-wider block">Current Year Total</span>
-                <span className="font-mono font-bold text-sm text-white mt-1 block">â‚¦1,200,000.00</span>
+                <span className="font-mono font-bold text-sm text-white mt-1 block">₦1,200,000.00</span>
               </div>
               <div className="flex items-center text-accent-green bg-accent-green/10 px-2 py-1 rounded-lg border border-accent-green/20">
                 <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />

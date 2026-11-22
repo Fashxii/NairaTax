@@ -1,5 +1,5 @@
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { AlertTriangle, Building2, Landmark, Scale, Receipt, Pencil } from 'lucide-react';
+import { AlertTriangle, Building2, Landmark, Scale, ReceiptText as Receipt, Pencil } from 'lucide-react';
 import type { CorporateValues } from '../../../registration/corporate/schema';
 import { COMMERCIAL_BANKS, classifyCIT, isVatMandatory, nrsTaxOffice } from '../../../registration/corporate/catalog';
 import { digitsOnly } from '../../../registration/services';

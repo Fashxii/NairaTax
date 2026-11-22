@@ -5,7 +5,7 @@ import {
   LogOut, ShieldAlert, ShieldCheck, Download, 
   Send, FileText, Info,
   Camera, Check, Upload, X, ArrowRight, Sparkles,
-  Calendar, Sun, Moon, Users, Building, Receipt, Stamp, Landmark
+  Calendar, Sun, Moon, Users, Building, ReceiptText, Stamp, Landmark
 } from 'lucide-react';
 import { DashboardTab, TaxFiling } from '../types';
 import TaxReceiptModal from './TaxReceiptModal';
@@ -546,7 +546,7 @@ export default function Dashboard() {
             {[
               { tab: 'nrs-returns' as DashboardTab, icon: Landmark, label: 'NRS Returns' },
               { tab: 'cit' as DashboardTab, icon: Building, label: 'CIT Calculator' },
-              { tab: 'wht' as DashboardTab, icon: Receipt, label: 'WHT Tracker' },
+              { tab: 'wht' as DashboardTab, icon: ReceiptText, label: 'WHT Tracker' },
               { tab: 'stamp-cgt' as DashboardTab, icon: Stamp, label: 'Stamp Duty & CGT' },
               { tab: 'tcc' as DashboardTab, icon: ShieldCheck, label: 'TCC Readiness' },
               { tab: 'invoicing' as DashboardTab, icon: FileText, label: 'E-Invoicing' },

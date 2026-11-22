@@ -1,5 +1,5 @@
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { CalendarClock, Lock, Receipt, ShieldCheck } from 'lucide-react';
+import { CalendarClock, Lock, ReceiptText as Receipt, ShieldCheck } from 'lucide-react';
 import type { CorporateValues } from '../../../registration/corporate/schema';
 import { VAT_MANDATORY_THRESHOLD, isVatMandatory } from '../../../registration/corporate/catalog';
 import { formatNaira } from '../../../registration/services';

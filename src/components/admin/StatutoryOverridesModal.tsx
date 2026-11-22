@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { X, ShieldCheck, Scale, Receipt, HeartHandshake, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, Scale, ReceiptText as Receipt, HeartHandshake, Loader2 } from 'lucide-react';
 import {
   APPROVED_RELIEFS,
   CIT_BRACKET_LABELS,

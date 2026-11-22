@@ -57,4 +57,24 @@ describe('mergeContent (CMS content loading)', () => {
     const health = evaluateSeoHealth(merged.seo);
     expect(health.score).toBeGreaterThanOrEqual(80);
   });
+
+  it('ensures no source file in src/ contains corrupted UTF-8 Naira (â‚¦) or symbol mojibake', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    function walk(dir: string, out: string[] = []): string[] {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) walk(full, out);
+        else if (/\.(tsx?|jsx?)$/.test(ent.name) && !ent.name.endsWith('.test.ts')) out.push(full);
+      }
+      return out;
+    }
+    const mojibakeRe = /â‚¦|â‰ˆ|â€”|â€“|â€™|â€œ|â€¢|â€¦|â†’|\ufffd/;
+    const badFiles: string[] = [];
+    for (const file of walk(path.resolve(process.cwd(), 'src'))) {
+      const content = fs.readFileSync(file, 'utf8');
+      if (mojibakeRe.test(content)) badFiles.push(file);
+    }
+    expect(badFiles).toEqual([]);
+  });
 });

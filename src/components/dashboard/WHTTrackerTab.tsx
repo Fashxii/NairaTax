@@ -1,7 +1,7 @@
 import { useState, memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Receipt, Plus, X,
+  ReceiptText as Receipt, Plus, X,
   CheckCircle2, Info, Building, User
 } from 'lucide-react';
 import {
@@ -211,9 +211,8 @@ const WHTTrackerTab = memo(function WHTTrackerTab() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold ${
-                    tx.payeeType === 'company' ? 'bg-blue-600' : 'bg-purple-600'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold ${tx.payeeType === 'company' ? 'bg-blue-600' : 'bg-purple-600'
+                    }`}>
                     {tx.payeeType === 'company' ? <Building className="w-4 h-4" /> : <User className="w-4 h-4" />}
                   </div>
                   <div>
@@ -226,13 +225,12 @@ const WHTTrackerTab = memo(function WHTTrackerTab() {
                     <p className="text-xs font-mono font-bold text-primary-container">{formatNaira(tx.whtAmount)}</p>
                     <p className="text-[10px] text-on-surface-variant">of {formatNaira(tx.grossAmount)} @ {(tx.whtRate * 100)}%</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${
-                    tx.status === 'remitted'
+                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${tx.status === 'remitted'
                       ? 'bg-emerald-50 text-emerald-700'
                       : tx.status === 'credited'
                         ? 'bg-blue-50 text-blue-700'
                         : 'bg-amber-50 text-amber-700'
-                  }`}>
+                    }`}>
                     {tx.status}
                   </span>
                 </div>
@@ -326,11 +324,10 @@ const WHTTrackerTab = memo(function WHTTrackerTab() {
                     <button
                       key={type}
                       onClick={() => setNewPayeeType(type)}
-                      className={`flex-1 h-10 rounded-lg text-xs font-bold capitalize cursor-pointer transition-all ${
-                        newPayeeType === type
+                      className={`flex-1 h-10 rounded-lg text-xs font-bold capitalize cursor-pointer transition-all ${newPayeeType === type
                           ? 'bg-primary-container text-white'
                           : 'bg-surface-container-low text-on-surface-variant border border-outline-variant'
-                      }`}
+                        }`}
                     >
                       {type}
                     </button>
