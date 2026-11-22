@@ -19,4 +19,42 @@ describe('mergeContent (CMS content loading)', () => {
     expect(merged.gateway.navCtaText).toBe('File Tax Return');
     expect(merged.gateway.portalTitle).toBe('Secure Filing Portal');
   });
+
+  it('merges SEO meta tags and generates valid sitemap.xml and robots directives', async () => {
+    const {
+      DEFAULT_SEO_CONFIG,
+      computeRobotsDirective,
+      evaluateSeoHealth,
+      generateRobotsTxt,
+      generateSitemapXml,
+    } = await import('./seo');
+
+    const merged = mergeContent({
+      seo: {
+        siteTitle: 'DIYtax9ja — Custom Nigerian Tax Portal Title',
+        googleSiteVerification: 'gsc_token_123',
+      },
+    });
+    expect(merged.seo.siteTitle).toBe('DIYtax9ja — Custom Nigerian Tax Portal Title');
+    expect(merged.seo.googleSiteVerification).toBe('gsc_token_123');
+    expect(merged.seo.canonicalUrl).toBe(DEFAULT_SEO_CONFIG.canonicalUrl);
+
+    // Cloud domain (*.web.app) and non-landing routes are always noindex
+    expect(computeRobotsDirective(merged.seo, '/', 'nairatax-6128f.web.app')).toContain('noindex');
+    expect(computeRobotsDirective(merged.seo, '/admin', 'diytax9ja.ng')).toContain('noindex');
+    expect(computeRobotsDirective(merged.seo, '/dashboard', 'diytax9ja.ng')).toContain('noindex');
+    // Custom domain landing page is indexable in landing_only mode
+    expect(computeRobotsDirective(merged.seo, '/', 'diytax9ja.ng')).toContain('index, follow');
+
+    const xml = generateSitemapXml(merged.seo, '2026-11-21');
+    expect(xml).toContain('<loc>https://diytax9ja.ng/</loc>');
+    expect(xml).toContain('<lastmod>2026-11-21</lastmod>');
+
+    const robots = generateRobotsTxt(merged.seo);
+    expect(robots).toContain('Sitemap: https://diytax9ja.ng/sitemap.xml');
+    expect(robots).toContain('Disallow: /admin');
+
+    const health = evaluateSeoHealth(merged.seo);
+    expect(health.score).toBeGreaterThanOrEqual(80);
+  });
 });

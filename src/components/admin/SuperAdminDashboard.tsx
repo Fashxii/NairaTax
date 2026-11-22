@@ -40,7 +40,7 @@ const TABS: { id: ConsoleTab; label: string; Icon: typeof Users; /** visible if 
   { id: 'roles', label: 'Roles & Permissions', Icon: KeyRound, perms: [] },
   { id: 'settings', label: 'Platform Settings', Icon: Sliders, perms: ['system.flags', 'system.maintenance'] },
   { id: 'tax-rules', label: 'Tax Rules', Icon: Scale, perms: ['tax_rules.view', 'tax_rules.edit', 'tax_rules.verify'] },
-  { id: 'content', label: 'Content', Icon: Megaphone, perms: ['cms.edit', 'announcements.manage'] },
+  { id: 'content', label: 'Content & SEO', Icon: Megaphone, perms: ['cms.edit', 'announcements.manage'] },
   { id: 'security', label: 'Security', Icon: Shield, perms: ['system.security_policy'] },
   { id: 'audit', label: 'Audit Logs', Icon: FileText, perms: ['audit.view'] },
   { id: 'communications', label: 'Communications', Icon: Mail, perms: ['email.settings', 'email.templates.view', 'email.logs.view'] },

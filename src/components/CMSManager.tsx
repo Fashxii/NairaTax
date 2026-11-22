@@ -208,7 +208,7 @@ export default function CMSManager() {
 
       {/* Horizontal Page Navigator */}
       <div className="flex items-center space-x-2 bg-surface-container p-1 rounded-xl border border-outline-variant overflow-x-auto hide-scrollbar">
-        {(Object.keys(content) as Array<keyof AppContent>).map(page => (
+        {(['gateway', 'dashboard'] as const).map(page => (
           <button
             key={page}
             onClick={() => handlePageSwitch(page)}

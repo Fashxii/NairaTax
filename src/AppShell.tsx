@@ -20,6 +20,8 @@ import { isDemoSession, DEMO_EMAIL } from './utils/userScope';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { usePlatformSettings, useTaxRulesSync } from './admin/platformStore';
+import { useContent } from './context/ContentContext';
+import { applySeoToDocument } from './utils/seo';
 
 import SkipToContent from './components/SkipToContent';
 
@@ -54,8 +56,9 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, setSession, isAuthenticated, logout } = useSession();
-  // Live platform configuration (feature flags, maintenance) and admin-managed tax rules.
+  // Live platform configuration (feature flags, maintenance), admin-managed tax rules, and CMS/SEO.
   const platform = usePlatformSettings();
+  const { content } = useContent();
   useTaxRulesSync();
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -73,21 +76,11 @@ export default function AppShell() {
     }
   }, [theme]);
 
-  // Search-engine protection: never let crawlers index the raw Firebase Hosting
-  // domain (*.web.app / *.firebaseapp.com) or any authenticated/admin route.
+  // Synchronize live Admin SEO meta tags, Open Graph cards, JSON-LD, and route-aware
+  // robots directives (always forces noindex on *.web.app / *.firebaseapp.com and app/admin routes).
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const host = window.location.hostname.toLowerCase();
-    const isCloudDefaultDomain = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
-    const isPublicLanding = location.pathname === '/' && !isCloudDefaultDomain;
-    let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.name = 'robots';
-      document.head.appendChild(meta);
-    }
-    meta.content = isPublicLanding ? 'index, follow' : 'noindex, nofollow, noarchive, nosnippet';
-  }, [location.pathname]);
+    applySeoToDocument(content.seo, location.pathname);
+  }, [content.seo, location.pathname]);
 
   const isLoggingOutRef = useRef(false);
 

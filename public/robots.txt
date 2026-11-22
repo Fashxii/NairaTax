@@ -21,6 +21,7 @@ Disallow: /
 
 User-agent: *
 Allow: /$
+Allow: /sitemap.xml$
 Disallow: /admin
 Disallow: /dashboard
 Disallow: /verify
@@ -29,3 +30,4 @@ Disallow: /register
 Disallow: /api/
 Disallow: /assets/
 
+Sitemap: https://diytax9ja.ng/sitemap.xml

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { saveContent, usePublishedContent } from '../admin/platformStore';
+import { DEFAULT_SEO_CONFIG, type SeoConfig } from '../utils/seo';
 
 // Define the shape of our CMS content
 export interface AppContent {
@@ -25,6 +26,7 @@ export interface AppContent {
     welcomeGreeting: string;
     advisorIntroText: string;
   };
+  seo: SeoConfig;
 }
 
 const defaultContent: AppContent = {
@@ -49,7 +51,8 @@ const defaultContent: AppContent = {
   dashboard: {
     welcomeGreeting: "Hello,",
     advisorIntroText: "Hello! I am your virtual DIYtax9ja Advisor. Ask me anything about the new Nigerian Tax Implementation, deadlines, the National Identification Number (NIN-TIN) integration, or Personal Income Tax rates."
-  }
+  },
+  seo: { ...DEFAULT_SEO_CONFIG },
 };
 
 interface ContentContextType {
@@ -72,12 +75,13 @@ export function mergeContent(saved: unknown): AppContent {
   const merged: AppContent = {
     gateway: { ...defaultContent.gateway },
     dashboard: { ...defaultContent.dashboard },
+    seo: { ...defaultContent.seo },
   };
   if (!saved || typeof saved !== 'object') return merged;
   (Object.keys(merged) as (keyof AppContent)[]).forEach((section) => {
     const src = (saved as Record<string, unknown>)[section];
     if (!src || typeof src !== 'object') return;
-    const target = merged[section] as Record<string, string>;
+    const target = merged[section] as unknown as Record<string, string>;
     Object.keys(target).forEach((key) => {
       const value = (src as Record<string, unknown>)[key];
       if (typeof value === 'string' && value.trim() !== '') target[key] = value;

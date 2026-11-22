@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { Megaphone, Save, Lock, Eye } from 'lucide-react';
 import { useToast } from '../Toast';
 import CMSManager from '../CMSManager';
+import SeoSitemapManager from './SeoSitemapManager';
 import { usePermissions } from '../../admin/usePermissions';
 import { usePlatformSettingsState, savePlatformSettings, describeWriteError } from '../../admin/platformStore';
 import { isAnnouncementVisible, type Announcement } from '../../admin/platformSettings';
@@ -114,6 +115,7 @@ export default function ContentPanel() {
   const { can } = usePermissions();
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <SeoSitemapManager />
       {can('announcements.manage') || can('cms.edit') ? <AnnouncementEditor /> : null}
       <CMSManager />
     </motion.div>
