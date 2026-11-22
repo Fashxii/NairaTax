@@ -40,6 +40,29 @@ export interface TaxRulesDoc {
   updatedBy?: string;
 }
 
+export type SignOff = Pick<TaxYearConfig, 'verified' | 'verifiedBy' | 'verifiedOn'>;
+
+/**
+ * Firestore layout: figures in `taxYears`, adviser sign-offs in `signoffs`.
+ * Keeping them apart lets the rules restrict sign-off-only roles to `signoffs`.
+ */
+export function toStoredTaxRules(next: TaxRulesDoc): {
+  taxYears: Record<string, Partial<EditableTaxYear>>;
+  whtRates: Record<string, WhtRateOverride>;
+  signoffs: Record<string, Partial<SignOff>>;
+} {
+  const taxYears: Record<string, Partial<EditableTaxYear>> = {};
+  const signoffs: Record<string, Partial<SignOff>> = {};
+  for (const [year, cfg] of Object.entries(next.taxYears)) {
+    const { verified, verifiedBy, verifiedOn, ...figures } = cfg;
+    if (Object.keys(figures).length) taxYears[year] = figures;
+    if (verified !== undefined || verifiedBy !== undefined || verifiedOn !== undefined) {
+      signoffs[year] = { verified, verifiedBy, verifiedOn };
+    }
+  }
+  return { taxYears, whtRates: next.whtRates, signoffs };
+}
+
 // Snapshots of the shipped defaults, taken before any override is applied.
 const DEFAULT_TAX_YEARS: TaxYearConfig[] = TAX_YEAR_CONFIGS.map((c) => ({ ...c, notes: [...c.notes] }));
 const DEFAULT_WHT: WHTRateEntry[] = WHT_RATE_SCHEDULE.map((r) => ({ ...r }));
@@ -83,6 +106,19 @@ export function normalizeTaxRules(raw: unknown): TaxRulesDoc {
       if (typeof c.legalBasis === 'string') clean.legalBasis = c.legalBasis.slice(0, 300);
       if (Array.isArray(c.notes)) clean.notes = c.notes.filter((n): n is string => typeof n === 'string').slice(0, 10);
       out.taxYears[year] = clean;
+    }
+  }
+  // Adviser sign-offs are stored separately (`signoffs.{year}`) so the
+  // tax_rules.verify permission can be limited to them by firestore.rules.
+  const signoffs = (raw as { signoffs?: unknown }).signoffs;
+  if (signoffs && typeof signoffs === 'object') {
+    for (const [year, s] of Object.entries(signoffs as Record<string, unknown>)) {
+      if (!/^\d{4}$/.test(year) || !s || typeof s !== 'object') continue;
+      const so = s as Partial<SignOff>;
+      const target = (out.taxYears[year] ??= {});
+      if (typeof so.verified === 'boolean') target.verified = so.verified;
+      if (typeof so.verifiedBy === 'string') target.verifiedBy = so.verifiedBy.slice(0, 120);
+      if (typeof so.verifiedOn === 'string') target.verifiedOn = so.verifiedOn.slice(0, 10);
     }
   }
   if (r.whtRates && typeof r.whtRates === 'object') {

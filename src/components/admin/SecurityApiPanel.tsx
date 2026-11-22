@@ -17,20 +17,22 @@ import { recordAuditLog } from '../../utils/auditLogger';
 
 type Status = 'done' | 'deploy' | 'open';
 
-/** Findings from the Nov 2026 backend review and their remediation status. */
+/** Findings from the Nov 2026 backend review and the v1.0 security review, with remediation status. */
 const POSTURE: { title: string; detail: string; status: Status }[] = [
-  { title: 'SMTP settings endpoint requires staff permission', detail: 'testSMTP now verifies the caller’s ID token and the “Configure SMTP” permission before saving.', status: 'deploy' },
-  { title: 'Email send endpoint is no longer an open relay', detail: 'sendEmailFn requires a signed-in staff member with “Send test emails”.', status: 'deploy' },
-  { title: 'Sign-in code request no longer leaks profile data', detail: 'sendOTP returns only the account type, not role, name or NIN.', status: 'deploy' },
-  { title: 'Role changes & suspensions revoke sessions', detail: 'A Firestore trigger re-issues claims, revokes refresh tokens and disables suspended Auth users.', status: 'deploy' },
-  { title: 'Maintenance mode enforced at sign-in', detail: 'sendOTP refuses taxpayer codes while maintenance is on.', status: 'deploy' },
-  { title: 'Granular permissions enforced by Firestore rules', detail: 'hasPerm() reads the published permission matrix.', status: 'deploy' },
-  { title: 'Platform-wide, append-only audit trail', detail: 'Staff actions are written to admin_audit_logs (no edits or deletes).', status: 'deploy' },
-  { title: 'Staff can no longer edit taxpayer data', detail: 'Only owners and Super Admins can write user subcollections.', status: 'deploy' },
-  { title: 'Rotate the leaked super-admin password', detail: 'app/api/auth.ts (legacy, not deployed) contains a plaintext password in git history. Change it anywhere it is reused and purge history.', status: 'open' },
-  { title: 'Move SMTP password to Secret Manager', detail: 'The SMTP password is still stored in Firestore system_config (server-only).', status: 'open' },
-  { title: 'Add Firebase App Check', detail: 'Protects public endpoints (sendOTP/verifyOTP) from scripted abuse.', status: 'open' },
-  { title: 'Admin route guards rely on the local session', detail: 'Console screens are hidden client-side; data is protected server-side by rules.', status: 'open' },
+  { title: 'SMTP settings endpoint requires staff permission', detail: 'testSMTP verifies the caller’s ID token and the “Configure SMTP” permission; public mail hosts and standard ports only.', status: 'done' },
+  { title: 'Email send endpoint is no longer an open relay', detail: 'sendEmailFn requires staff with “Send test emails”; recipients, headers and attachments are validated.', status: 'done' },
+  { title: 'Sign-in code request no longer leaks profile data', detail: 'sendOTP returns only the account type, and no longer creates accounts before the code is verified.', status: 'done' },
+  { title: 'Sign-in code brute force blocked', detail: 'Attempts are counted in a transaction before comparison (constant-time), with per-email and per-IP limits.', status: 'done' },
+  { title: 'Role changes & suspensions revoke sessions', detail: 'A Firestore trigger re-issues claims, revokes refresh tokens and disables suspended Auth users.', status: 'done' },
+  { title: 'Permission matrix is Super Admin only', detail: 'roles.manage cannot be delegated, and roles that hand out roles cannot be assigned by staff.', status: 'done' },
+  { title: 'Self-declared NIN cannot pose as verified', detail: 'Owners may record a masked NIN only; verification flags are reserved for the server.', status: 'done' },
+  { title: 'Platform-wide, append-only audit trail', detail: 'Entries carry a server timestamp and a fixed schema (no edits, deletes or back-dating).', status: 'done' },
+  { title: 'SMTP password encrypted at rest', detail: 'AES-256-GCM with a key in Secret Manager; never stored in the browser.', status: 'done' },
+  { title: 'Security headers on Hosting', detail: 'HSTS, X-Frame-Options DENY, nosniff, Referrer/Permissions-Policy. CSP runs in report-only mode first.', status: 'done' },
+  { title: 'Leaked legacy password removed', detail: 'Dead app/api code deleted and purged from git history. The password must be changed wherever it was reused.', status: 'done' },
+  { title: 'Enforce Firebase App Check', detail: 'Wired in monitor mode. Create the reCAPTCHA Enterprise key, set VITE_RECAPTCHA_ENTERPRISE_SITE_KEY, then set APP_CHECK_ENFORCE=true.', status: 'open' },
+  { title: 'Enforce the Content-Security-Policy', detail: 'Switch from report-only to enforcing after a clean week.', status: 'open' },
+  { title: 'MFA for staff accounts', detail: 'Email OTP is the only factor today. Add TOTP/passkeys for admin roles (Phase 3).', status: 'open' },
 ];
 
 const STATUS_META: Record<Status, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {

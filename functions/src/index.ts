@@ -9,7 +9,11 @@
  *    (enter your Gmail address, e.g. noreply@diytax9ja.ng or a Gmail account)
  * 2. Run: firebase functions:secrets:set GMAIL_APP_PASSWORD
  *    (enter Gmail App Password — generate at https://myaccount.google.com/apppasswords)
- * 3. Run: firebase deploy --only functions
+ * 3. Run: firebase functions:secrets:set OTP_HMAC_KEY   (random 32+ byte value)
+ * 4. Run: firebase functions:secrets:set SMTP_ENC_KEY   (random 32+ byte value)
+ * 5. Optional: APP_CHECK_ENFORCE=true in functions/.env to reject requests
+ *    without a valid App Check token (default: monitor/log only).
+ * 6. Run: firebase deploy --only functions
  */
 
 import * as functions from "firebase-functions/v2";
@@ -23,6 +27,138 @@ const db = admin.firestore();
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_ATTEMPTS = 5;
+
+// ─── Shared HTTP hardening (v1.0 security review) ───────────────────
+// Only our own web origins may call these endpoints from a browser.
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+  /^https:\/\/nairatax-6128f\.(web\.app|firebaseapp\.com)$/,
+  "https://diytax9ja.ng",
+  "https://www.diytax9ja.ng",
+  /^http:\/\/localhost:\d+$/,
+];
+
+/** Common options: CORS allowlist and an instance cap so a request flood can't run up the bill. */
+const HTTP_OPTS = {
+  cors: ALLOWED_ORIGINS,
+  region: "us-central1",
+  maxInstances: 10,
+} as const;
+
+function clientIp(req: functions.https.Request): string {
+  const fwd = String(req.get("x-forwarded-for") || "").split(",")[0].trim();
+  return fwd || req.ip || "unknown";
+}
+
+/**
+ * Firebase App Check. Monitor mode by default: invalid or missing tokens are
+ * logged. Set the env var APP_CHECK_ENFORCE=true (functions/.env) to reject them.
+ * Returns false when the request was rejected.
+ */
+async function checkAppCheck(
+  req: functions.https.Request,
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+): Promise<boolean> {
+  const enforce = process.env.APP_CHECK_ENFORCE === "true";
+  const token = req.get("X-Firebase-AppCheck");
+  let valid = false;
+  if (token) {
+    try {
+      await admin.appCheck().verifyToken(token);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+  }
+  if (!valid) {
+    functions.logger.warn(`[AppCheck] ${token ? "invalid" : "missing"} token on ${req.path} (enforce=${enforce})`);
+    if (enforce) {
+      res.status(401).json({ error: "This request could not be verified. Please refresh the page and try again." });
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Fixed-window per-IP rate limit stored in ip_rate_limits (server-only).
+ * Returns false (and sends 429) once `max` requests per `windowMs` are used.
+ */
+async function rateLimitIp(
+  req: functions.https.Request,
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+  scope: string,
+  max: number,
+  windowMs: number,
+): Promise<boolean> {
+  const ipHash = crypto.createHash("sha256").update(clientIp(req)).digest("hex").slice(0, 32);
+  const bucket = Math.floor(Date.now() / windowMs);
+  const ref = db.collection("ip_rate_limits").doc(`${scope}_${ipHash}_${bucket}`);
+  try {
+    const count = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const next = (snap.exists ? (snap.data()?.count as number) || 0 : 0) + 1;
+      tx.set(ref, {
+        count: next,
+        expiresAt: admin.firestore.Timestamp.fromMillis((bucket + 1) * windowMs + windowMs),
+      });
+      return next;
+    });
+    if (count > max) {
+      res.status(429).json({ error: "Too many requests from your network. Please wait a few minutes and try again." });
+      return false;
+    }
+  } catch (err) {
+    functions.logger.warn("[RateLimit] could not apply IP limit", err);
+  }
+  return true;
+}
+
+// ─── SMTP password encryption at rest (key lives in Secret Manager) ─
+function smtpKey(): Buffer | null {
+  const raw = (process.env.SMTP_ENC_KEY || "").trim();
+  if (!raw) return null;
+  return crypto.createHash("sha256").update(raw).digest(); // 32 bytes
+}
+
+function encryptSecret(plain: string): string | null {
+  const key = smtpKey();
+  if (!key) return null;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return [iv.toString("base64"), cipher.getAuthTag().toString("base64"), enc.toString("base64")].join(".");
+}
+
+function decryptSecret(payload: unknown): string | null {
+  const key = smtpKey();
+  if (!key || typeof payload !== "string") return null;
+  try {
+    const [iv, tag, data] = payload.split(".").map((p) => Buffer.from(p, "base64"));
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+/** Stored SMTP password: encrypted field first, legacy plaintext as a fallback. */
+function storedSmtpPassword(smtp: admin.firestore.DocumentData | undefined): string | undefined {
+  if (!smtp) return undefined;
+  return decryptSecret(smtp.authPassEnc) ?? (typeof smtp.authPass === "string" ? smtp.authPass : undefined);
+}
+
+// ─── Input validation helpers ───────────────────────────────────────
+const EMAIL_RE = /^[^\s@"<>(),;:\\[\]]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+function isEmail(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 254 && EMAIL_RE.test(v.trim());
+}
+
+/** Strip characters that could break out of a mail header. */
+function headerSafe(v: unknown, max = 120): string {
+  return typeof v === "string" ? v.replace(/[\r\n"<>]/g, " ").trim().slice(0, max) : "";
+}
 
 // Staff roles are resolved server-side only. Bootstrap super admins are
 // always granted super_admin; other staff roles come from users/{email}.role
@@ -117,11 +253,19 @@ function generateOTPCode(): string {
   return (array[0] % 900000 + 100000).toString();
 }
 
-function hashOTP(code: string): string {
+/** HMAC of an OTP code, keyed by a Secret Manager value (falls back to the legacy key only if unset). */
+function hashOTP(code: string, email: string): string {
+  const key = (process.env.OTP_HMAC_KEY || "").trim() || "nairatax_server_otp_salt_v2";
   return crypto
-    .createHmac("sha256", "nairatax_server_otp_salt_v2")
-    .update(code)
+    .createHmac("sha256", key)
+    .update(`${email}:${code}`)
     .digest("hex");
+}
+
+function safeEqualHex(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  return ba.length === bb.length && ba.length > 0 && crypto.timingSafeEqual(ba, bb);
 }
 
 function createTransporter(gmailUser: string, gmailAppPassword: string) {
@@ -195,9 +339,8 @@ function buildOTPEmailHTML(code: string, email: string): string {
 
 export const sendOTP = functions.https.onRequest(
   {
-    cors: true,
-    secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
-    region: "us-central1",
+    ...HTTP_OPTS,
+    secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD", "OTP_HMAC_KEY", "SMTP_ENC_KEY"],
   },
   async (req, res) => {
     // Only accept POST
@@ -206,10 +349,14 @@ export const sendOTP = functions.https.onRequest(
       return;
     }
 
-    try {
-      const { email, fullName, accountType } = req.body;
+    if (!(await checkAppCheck(req, res))) return;
+    // Per-IP cap on top of the per-email cap: stops one client mailing many addresses.
+    if (!(await rateLimitIp(req, res, "send", 15, 10 * 60 * 1000))) return;
 
-      if (!email || typeof email !== "string" || !email.includes("@")) {
+    try {
+      const { email, fullName, accountType } = req.body || {};
+
+      if (!isEmail(email)) {
         res.status(400).json({ error: "A valid email address is required." });
         return;
       }
@@ -284,21 +431,9 @@ export const sendOTP = functions.https.onRequest(
         await rateLimitRef.set({ windowStart: now, count: 1 });
       }
 
-      // New sign-up: create the account in the users table
-      if (isNewRegistration) {
-        await userRef.set({
-          email: cleanEmail,
-          fullName: cleanName,
-          accountType: cleanAccountType,
-          role: "taxpayer",
-          isActive: true,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastLogin: null,
-        });
-      } else if (!userData.fullName && cleanName) {
-        // Backfill a missing name; never overwrite an existing one.
-        await userRef.update({ fullName: cleanName });
-      }
+      // No account is created here: the users/{email} record is only written by
+      // verifyOTP after the caller proves they own the inbox. The name and
+      // account type supplied for a new sign-up travel with the pending code.
 
       if (userDoc.exists && userData.isActive === false) {
         res.status(403).json({
@@ -310,7 +445,7 @@ export const sendOTP = functions.https.onRequest(
 
       // Generate & store OTP hash
       const code = generateOTPCode();
-      const codeHash = hashOTP(code);
+      const codeHash = hashOTP(code, cleanEmail);
       const expiresAt = new Date(now + OTP_TTL_MS);
 
       await db
@@ -322,6 +457,8 @@ export const sendOTP = functions.https.onRequest(
           expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
           attempts: 0,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          pendingFullName: cleanName || null,
+          pendingAccountType: cleanAccountType,
         });
 
       // Send email via Nodemailer
@@ -375,8 +512,8 @@ export const sendOTP = functions.https.onRequest(
 
 export const verifyOTP = functions.https.onRequest(
   {
-    cors: true,
-    region: "us-central1",
+    ...HTTP_OPTS,
+    secrets: ["OTP_HMAC_KEY"],
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -384,10 +521,13 @@ export const verifyOTP = functions.https.onRequest(
       return;
     }
 
-    try {
-      const { email, code } = req.body;
+    if (!(await checkAppCheck(req, res))) return;
+    if (!(await rateLimitIp(req, res, "verify", 30, 10 * 60 * 1000))) return;
 
-      if (!email || !code) {
+    try {
+      const { email, code } = req.body || {};
+
+      if (!isEmail(email) || (typeof code !== "string" && typeof code !== "number")) {
         res.status(400).json({
           error: "Email and verification code are required.",
         });
@@ -396,50 +536,55 @@ export const verifyOTP = functions.https.onRequest(
 
       const cleanEmail = email.toLowerCase().trim();
       const tokenRef = db.collection("otp_tokens").doc(cleanEmail);
-      const tokenDoc = await tokenRef.get();
+      const submittedHash = hashOTP(String(code).trim(), cleanEmail);
 
-      if (!tokenDoc.exists) {
+      // The attempt is counted inside a transaction BEFORE the comparison, so
+      // parallel guesses can never exceed MAX_ATTEMPTS.
+      type Outcome =
+        | { kind: "missing" | "expired" | "locked" }
+        | { kind: "wrong"; attemptsLeft: number }
+        | { kind: "ok"; token: admin.firestore.DocumentData };
+      const outcome: Outcome = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(tokenRef);
+        if (!snap.exists) return { kind: "missing" };
+        const t = snap.data()!;
+        if (Date.now() > (t.expiresAt as admin.firestore.Timestamp).toMillis()) {
+          tx.delete(tokenRef);
+          return { kind: "expired" };
+        }
+        const attempts = (t.attempts as number) || 0;
+        if (attempts >= MAX_ATTEMPTS) {
+          tx.delete(tokenRef);
+          return { kind: "locked" };
+        }
+        tx.update(tokenRef, { attempts: attempts + 1 });
+        if (!safeEqualHex(submittedHash, String(t.codeHash || ""))) {
+          return { kind: "wrong", attemptsLeft: MAX_ATTEMPTS - (attempts + 1) };
+        }
+        return { kind: "ok", token: t };
+      });
+
+      if (outcome.kind === "missing") {
+        res.status(400).json({ error: "No active verification code found. Please request a new one." });
+        return;
+      }
+      if (outcome.kind === "expired") {
+        res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+        return;
+      }
+      if (outcome.kind === "locked") {
+        res.status(429).json({ error: "Too many failed attempts. Please request a new verification code." });
+        return;
+      }
+      if (outcome.kind === "wrong") {
+        const left = Math.max(0, outcome.attemptsLeft);
         res.status(400).json({
-          error:
-            "No active verification code found. Please request a new one.",
+          error: `Invalid verification code. ${left} attempt${left !== 1 ? "s" : ""} remaining.`,
         });
         return;
       }
-
-      const token = tokenDoc.data()!;
-      const now = Date.now();
-      const expiresAt = (token.expiresAt as admin.firestore.Timestamp).toMillis();
-
-      if (now > expiresAt) {
-        await tokenRef.delete();
-        res.status(400).json({
-          error:
-            "Verification code has expired. Please request a new one.",
-        });
-        return;
-      }
-
-      if (token.attempts >= MAX_ATTEMPTS) {
-        await tokenRef.delete();
-        res.status(429).json({
-          error:
-            "Too many failed attempts. Please request a new verification code.",
-        });
-        return;
-      }
-
-      const submittedHash = hashOTP(code.toString().trim());
-
-      if (submittedHash !== token.codeHash) {
-        await tokenRef.update({
-          attempts: admin.firestore.FieldValue.increment(1),
-        });
-        const attemptsLeft = MAX_ATTEMPTS - (token.attempts + 1);
-        res.status(400).json({
-          error: `Invalid verification code. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`,
-        });
-        return;
-      }
+      if (outcome.kind !== "ok") return;
+      const token = outcome.token;
 
       // Code matched. The token is deleted only after the custom token is
       // minted, so a server-side failure doesn't burn the user's code.
@@ -457,14 +602,22 @@ export const verifyOTP = functions.https.onRequest(
         return;
       }
 
+      // First successful verification creates the account, using the name and
+      // account type captured when the code was requested.
+      const pendingName = typeof token.pendingFullName === "string" ? token.pendingFullName : "";
+      const pendingType = token.pendingAccountType === "business" ? "business" : "individual";
+      const fullName = (userData.fullName as string) || pendingName;
+      const accountType = (userData.accountType as string) || pendingType;
+
       await userRef.set(
         {
           email: cleanEmail,
           role,
           lastLogin: admin.firestore.FieldValue.serverTimestamp(),
+          ...(!userData.fullName && pendingName ? { fullName: pendingName } : {}),
           ...(userDoc.exists ? {} : {
             isActive: true,
-            accountType: "individual",
+            accountType: pendingType,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }),
         },
@@ -479,7 +632,8 @@ export const verifyOTP = functions.https.onRequest(
         if (authErr.code === "auth/user-not-found") {
           authUser = await admin.auth().createUser({
             email: cleanEmail,
-            displayName: (userData.fullName as string) || cleanEmail.split("@")[0],
+            emailVerified: true,
+            displayName: fullName || cleanEmail.split("@")[0],
           });
         } else {
           throw authErr;
@@ -505,10 +659,12 @@ export const verifyOTP = functions.https.onRequest(
         user: {
           uid: authUser.uid,
           email: cleanEmail,
-          fullName: userData.fullName || "",
+          fullName,
           role,
-          accountType: userData.accountType || "individual",
-          isNINLinked: userData.isNINLinked === true,
+          accountType,
+          // NIN on file (self-declared until server-side NIMC verification ships).
+          isNINLinked: userData.ninVerified === true || userData.ninDeclared === true || userData.isNINLinked === true,
+          ninVerified: userData.ninVerified === true,
           nin: userData.nin || undefined,
         },
       });
@@ -527,9 +683,8 @@ export const verifyOTP = functions.https.onRequest(
 
 export const sendEmailFn = functions.https.onRequest(
   {
-    cors: true,
-    secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
-    region: "us-central1",
+    ...HTTP_OPTS,
+    secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD", "OTP_HMAC_KEY", "SMTP_ENC_KEY"],
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -538,6 +693,7 @@ export const sendEmailFn = functions.https.onRequest(
     }
 
     // Staff only: previously this was an unauthenticated open mail relay.
+    if (!(await checkAppCheck(req, res))) return;
     if (!(await requireStaffPermission(req, res, "email.send_test"))) return;
 
     try {
@@ -551,10 +707,26 @@ export const sendEmailFn = functions.https.onRequest(
         replyTo,
         cc,
         bcc,
-      } = req.body;
+      } = req.body || {};
 
-      if (!recipientEmail || !renderedSubject || !renderedHtml) {
-        res.status(400).json({ error: "recipientEmail, renderedSubject, and renderedHtml are required." });
+      if (!isEmail(recipientEmail) || typeof renderedSubject !== "string" || typeof renderedHtml !== "string" || !renderedSubject || !renderedHtml) {
+        res.status(400).json({ error: "A valid recipientEmail, renderedSubject, and renderedHtml are required." });
+        return;
+      }
+      if (renderedHtml.length > 500_000) {
+        res.status(413).json({ error: "Email body is too large." });
+        return;
+      }
+      const ccList = Array.isArray(cc) ? cc : [];
+      const bccList = Array.isArray(bcc) ? bcc : [];
+      if (ccList.length + bccList.length > 10 || ![...ccList, ...bccList].every(isEmail) || (replyTo && !isEmail(replyTo))) {
+        res.status(400).json({ error: "cc/bcc/replyTo must be valid email addresses (max 10 recipients)." });
+        return;
+      }
+      const atts = Array.isArray(attachments) ? attachments : [];
+      const attBytes = atts.reduce((s: number, a: any) => s + (typeof a?.content === "string" ? a.content.length : 0), 0);
+      if (atts.length > 5 || attBytes > 7_000_000) {
+        res.status(413).json({ error: "Too many or too large attachments (max 5, ~5 MB total)." });
         return;
       }
 
@@ -576,7 +748,7 @@ export const sendEmailFn = functions.https.onRequest(
           secure: smtp.secure || false,
           auth: {
             user: smtp.authUser,
-            pass: smtp.authPass,
+            pass: storedSmtpPassword(smtp),
           },
         });
       } else {
@@ -597,24 +769,24 @@ export const sendEmailFn = functions.https.onRequest(
 
       // Build mail options
       const mailOptions: nodemailer.SendMailOptions = {
-        from: `"${senderName}" <${senderEmail}>`,
-        to: recipientName ? `"${recipientName}" <${recipientEmail}>` : recipientEmail,
-        subject: renderedSubject,
+        from: `"${headerSafe(senderName)}" <${senderEmail}>`,
+        to: recipientName ? `"${headerSafe(recipientName)}" <${recipientEmail.trim()}>` : recipientEmail.trim(),
+        subject: headerSafe(renderedSubject, 200),
         html: renderedHtml,
-        text: renderedSubject, // Fallback plaintext
+        text: headerSafe(renderedSubject, 200), // Fallback plaintext
       };
 
       if (replyTo) mailOptions.replyTo = replyTo;
-      if (cc && Array.isArray(cc)) mailOptions.cc = cc;
-      if (bcc && Array.isArray(bcc)) mailOptions.bcc = bcc;
+      if (ccList.length) mailOptions.cc = ccList;
+      if (bccList.length) mailOptions.bcc = bccList;
 
       // Handle attachments
-      if (attachments && Array.isArray(attachments)) {
-        mailOptions.attachments = attachments.map((att: any) => ({
-          filename: att.filename,
-          content: att.content,
-          encoding: att.encoding || "base64",
-          contentType: att.contentType || "application/pdf",
+      if (atts.length) {
+        mailOptions.attachments = atts.map((att: any) => ({
+          filename: headerSafe(att.filename, 100) || "attachment",
+          content: String(att.content || ""),
+          encoding: "base64",
+          contentType: att.contentType === "text/csv" ? "text/csv" : "application/pdf",
         }));
       }
 
@@ -653,8 +825,8 @@ export const sendEmailFn = functions.https.onRequest(
 
 export const testSMTP = functions.https.onRequest(
   {
-    cors: true,
-    region: "us-central1",
+    ...HTTP_OPTS,
+    secrets: ["SMTP_ENC_KEY"],
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -664,21 +836,36 @@ export const testSMTP = functions.https.onRequest(
 
     // Staff with "email.settings" only: a passing test overwrites the production
     // SMTP configuration, so this must never be callable anonymously.
+    if (!(await checkAppCheck(req, res))) return;
     if (!(await requireStaffPermission(req, res, "email.settings"))) return;
 
     try {
-      const { settings, testEmail } = req.body;
+      const { settings, testEmail } = req.body || {};
 
-      if (!settings || !testEmail) {
-        res.status(400).json({ error: "settings and testEmail are required." });
+      if (!settings || typeof settings !== "object" || !isEmail(testEmail)) {
+        res.status(400).json({ error: "settings and a valid testEmail are required." });
         return;
       }
 
-      // Only standard mail-submission ports (prevents use as a generic port scanner).
+      // Only standard mail-submission ports on public hostnames (prevents use as
+      // a port scanner or a probe of internal/metadata endpoints).
       const ALLOWED_SMTP_PORTS = [25, 465, 587, 2525];
-      if (!ALLOWED_SMTP_PORTS.includes(Number(settings.port)) || typeof settings.host !== "string" || !/^[a-z0-9.-]+$/i.test(settings.host)) {
-        res.status(400).json({ error: `Host must be a hostname and port one of ${ALLOWED_SMTP_PORTS.join(", ")}.` });
+      const host = typeof settings.host === "string" ? settings.host.trim().toLowerCase() : "";
+      const blockedHost =
+        !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ||
+        /(^|\.)(internal|local|localhost)$/.test(host) ||
+        host.startsWith("metadata");
+      if (!ALLOWED_SMTP_PORTS.includes(Number(settings.port)) || blockedHost) {
+        res.status(400).json({ error: `Host must be a public mail hostname and port one of ${ALLOWED_SMTP_PORTS.join(", ")}.` });
         return;
+      }
+      settings.host = host;
+      settings.auth = settings.auth && typeof settings.auth === "object" ? settings.auth : {};
+      // The browser never keeps the SMTP password. A blank password means
+      // "use the one already stored on the server".
+      if (!settings.auth.pass) {
+        const existing = await db.collection("system_config").doc("smtp_settings").get();
+        settings.auth.pass = storedSmtpPassword(existing.data());
       }
 
       const steps: Array<{ name: string; status: string; message: string; durationMs: number }> = [];
@@ -746,7 +933,7 @@ export const testSMTP = functions.https.onRequest(
         steps.push({
           name: "Authentication",
           status: "fail",
-          message: verifyErr.message || "Authentication failed",
+          message: `Authentication failed${verifyErr?.responseCode ? ` (SMTP ${verifyErr.responseCode})` : ""}. Check the username and password.`,
           durationMs: Date.now() - verifyStart,
         });
         res.status(200).json({ success: false, steps, latencyMs: steps.reduce((s, st) => s + st.durationMs, 0) });
@@ -757,8 +944,8 @@ export const testSMTP = functions.https.onRequest(
       const sendStart = Date.now();
       try {
         await transporter.sendMail({
-          from: `"${settings.senderName || "DIYtax9ja"}" <${settings.senderEmail || settings.auth?.user}>`,
-          to: testEmail,
+          from: `"${headerSafe(settings.senderName) || "DIYtax9ja"}" <${isEmail(settings.senderEmail) ? settings.senderEmail : settings.auth?.user}>`,
+          to: testEmail.trim(),
           subject: "✅ DIYtax9ja SMTP Test — Connection Successful",
           html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#013220;">SMTP Test Passed ✅</h2><p>This confirms your SMTP configuration on DIYtax9ja is working correctly.</p><p style="color:#888;font-size:12px;">Sent at ${new Date().toISOString()}</p></div>`,
         });
@@ -773,7 +960,7 @@ export const testSMTP = functions.https.onRequest(
         steps.push({
           name: "Test Email Delivery",
           status: "fail",
-          message: sendErr.message || "Delivery failed",
+          message: `Delivery failed${sendErr?.responseCode ? ` (SMTP ${sendErr.responseCode})` : ""}.`,
           durationMs: Date.now() - sendStart,
         });
       }
@@ -781,18 +968,25 @@ export const testSMTP = functions.https.onRequest(
       const totalLatency = steps.reduce((sum, s) => sum + s.durationMs, 0);
       const allPassed = steps.every((s) => s.status === "pass");
 
-      // Save settings to Firestore if test passed
+      // Save settings to Firestore if test passed. The password is stored
+      // AES-256-GCM encrypted with SMTP_ENC_KEY (Secret Manager), never in plaintext.
       if (allPassed) {
+        const authPassEnc = settings.auth?.pass ? encryptSecret(String(settings.auth.pass)) : null;
+        if (!authPassEnc) {
+          functions.logger.error("[Email] SMTP_ENC_KEY is not set; refusing to store the SMTP password.");
+          res.status(503).json({ success: false, steps, error: "Server encryption key is not configured." });
+          return;
+        }
         await db.collection("system_config").doc("smtp_settings").set({
-          provider: settings.provider,
+          provider: headerSafe(settings.provider, 40),
           host: settings.host,
-          port: settings.port,
-          secure: settings.secure,
-          authUser: settings.auth?.user,
-          authPass: settings.auth?.pass,
-          senderName: settings.senderName,
-          senderEmail: settings.senderEmail,
-          replyTo: settings.replyTo || null,
+          port: Number(settings.port),
+          secure: settings.secure === true,
+          authUser: headerSafe(settings.auth?.user, 254),
+          authPassEnc,
+          senderName: headerSafe(settings.senderName),
+          senderEmail: isEmail(settings.senderEmail) ? settings.senderEmail : null,
+          replyTo: isEmail(settings.replyTo) ? settings.replyTo : null,
           active: true,
           lastTestedAt: admin.firestore.FieldValue.serverTimestamp(),
           lastTestResult: "success",

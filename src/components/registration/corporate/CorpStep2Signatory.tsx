@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { BadgeCheck, Fingerprint, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { BadgeCheck, Fingerprint, ShieldCheck, AlertTriangle } from 'lucide-react';
 import type { CorporateValues } from '../../../registration/corporate/schema';
 import { DESIGNATIONS, isFreeEmail } from '../../../registration/corporate/catalog';
-import { mockMatchSignatory } from '../../../registration/corporate/services';
-import { digitsOnly, formatPhone, normalizePhone } from '../../../registration/services';
+import { checkNinFormat, digitsOnly, formatPhone, normalizePhone } from '../../../registration/services';
 import { Field, Select, TextInput } from '../ui';
 
 export default function CorpStep2Signatory() {
@@ -13,32 +12,29 @@ export default function CorpStep2Signatory() {
   const [nin, ninVerified, email, companyName] = useWatch({
     control, name: ['signatory.nin', 'signatory.ninVerified', 'signatory.email', 'entity.companyName'],
   });
-  const [checking, setChecking] = useState(false);
   const [ninError, setNinError] = useState('');
-  const [ninNote, setNinNote] = useState('');
 
-  const verify = async () => {
+  // Local format check only — the signatory NIN is self-declared (no CAC / NIMC matching in v1.0).
+  const confirm = () => {
     const designation = getValues('signatory.designation');
     if (!designation) { setNinError('Select the designation first.'); return; }
-    setChecking(true); setNinError('');
-    const res = await mockMatchSignatory(getValues('signatory.nin'), designation);
-    setChecking(false);
+    const res = checkNinFormat(getValues('signatory.nin'));
     if (!res.ok) { setNinError(res.error); return; }
-    setNinNote(res.note);
+    setNinError('');
     setValue('signatory.ninVerified', true, { shouldDirty: true });
     clearErrors(['signatory.nin', 'signatory.ninVerified']);
   };
 
-  const unverify = () => {
+  const unconfirm = () => {
     if (getValues('signatory.ninVerified')) setValue('signatory.ninVerified', false);
-    setNinNote(''); setNinError('');
+    setNinError('');
   };
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Signatory Designation" htmlFor="corp-designation" error={e?.designation?.message}>
-          <Select id="corp-designation" invalid={!!e?.designation} {...register('signatory.designation', { onChange: unverify })}>
+          <Select id="corp-designation" invalid={!!e?.designation} {...register('signatory.designation', { onChange: unconfirm })}>
             <option value="">Select designation…</option>
             {DESIGNATIONS.map((d) => <option key={d} value={d}>{d}</option>)}
           </Select>
@@ -49,28 +45,28 @@ export default function CorpStep2Signatory() {
       </div>
 
       <Field label="Signatory NIN" htmlFor="corp-nin" error={ninError || e?.nin?.message || e?.ninVerified?.message}
-        hint={ninVerified ? undefined : 'Matched against CAC director / secretary records (simulated).'}>
+        hint={ninVerified ? undefined : 'The 11-digit number on the officer’s NIN slip or NIMC ID card.'}>
         <div className="flex gap-2">
           <Controller control={control} name="signatory.nin" render={({ field }) => (
             <div className="relative flex-1">
               <TextInput id="corp-nin" inputMode="numeric" autoComplete="off" placeholder="00000000000"
                 className="font-mono tracking-[0.25em] pr-10" invalid={!!(ninError || e?.nin)}
                 value={field.value} ref={field.ref} onBlur={field.onBlur}
-                onChange={(ev) => { field.onChange(digitsOnly(ev.target.value, 11)); unverify(); }} />
+                onChange={(ev) => { field.onChange(digitsOnly(ev.target.value, 11)); unconfirm(); }} />
               <Fingerprint className="w-4.5 h-4.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
             </div>
           )} />
-          <button type="button" id="corp-verify-nin" onClick={verify}
-            disabled={checking || ninVerified || (nin ?? '').length !== 11}
+          <button type="button" id="corp-verify-nin" onClick={confirm}
+            disabled={ninVerified || (nin ?? '').length !== 11}
             className="h-12 px-4 rounded-xl text-xs font-bold bg-primary-container text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer shrink-0">
-            {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : ninVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
-            {checking ? 'Matching…' : ninVerified ? 'Matched' : 'Verify NIN'}
+            {ninVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
+            {ninVerified ? 'Confirmed' : 'Confirm NIN'}
           </button>
         </div>
       </Field>
       {ninVerified && (
         <p id="corp-nin-note" className="flex items-start gap-2 text-xs text-on-surface bg-accent-green/10 border border-accent-green/40 rounded-xl p-3.5 -mt-2">
-          <BadgeCheck className="w-4 h-4 text-accent-green shrink-0 mt-0.5" /> {ninNote || 'Identity confirmed.'}
+          <BadgeCheck className="w-4 h-4 text-accent-green shrink-0 mt-0.5" /> NIN recorded (self-declared). CAC/NIMC matching is coming soon.
         </p>
       )}
 
@@ -81,7 +77,7 @@ export default function CorpStep2Signatory() {
         <TextInput id="corp-email" type="email" inputMode="email" autoComplete="email" placeholder="tax@yourcompany.ng" invalid={!!e?.email} {...register('signatory.email')} />
       </Field>
 
-      <Field label="Official Phone Number" htmlFor="corp-phone" error={e?.phone?.message} hint="Used for two-factor verification via SMS / WhatsApp.">
+      <Field label="Official Phone Number" htmlFor="corp-phone" error={e?.phone?.message} hint="Contact number for tax correspondence. It is recorded but not verified.">
         <Controller control={control} name="signatory.phone" render={({ field }) => (
           <div className="flex">
             <span className="h-12 px-3.5 flex items-center gap-1.5 bg-surface-container border border-r-0 border-outline rounded-l-xl text-sm font-bold text-on-surface">

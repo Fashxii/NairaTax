@@ -23,7 +23,7 @@ export default function Step1Credentials() {
         <TextInput id="reg-email" type="email" autoComplete="email" inputMode="email" placeholder="you@domain.ng" invalid={!!e?.email} {...register('auth.email')} />
       </Field>
 
-      <Field label="Mobile Number" htmlFor="reg-phone" error={e?.phone?.message} hint="Used for SMS / WhatsApp filing reminders.">
+      <Field label="Mobile Number" htmlFor="reg-phone" error={e?.phone?.message} hint="Saved as your contact number.">
         <Controller
           control={control} name="auth.phone"
           render={({ field }) => (

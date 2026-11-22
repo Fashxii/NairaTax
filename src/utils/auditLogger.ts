@@ -11,7 +11,7 @@
 
 import { getStored, setStored } from './store';
 import { auth, db } from '../lib/firebase';
-import { addDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { addDoc, collection, query, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
 
 export type AuditModule =
   | 'System Config'
@@ -83,14 +83,18 @@ async function persistToCloud(entry: AuditLogEntry): Promise<void> {
     if (typeof role !== 'string' || role === 'taxpayer') return;
     const email = typeof token.claims.email === 'string' ? token.claims.email : user.email;
     if (!email) return;
-    await addDoc(collection(db, 'admin_audit_logs'), JSON.parse(JSON.stringify({
-      ...entry,
-      // Rules require actorEmail to match the authenticated identity.
-      actorEmail: email,
-      actorRole: role,
-      createdAt: new Date().toISOString(),
-      source: undefined,
-    })));
+    await addDoc(collection(db, 'admin_audit_logs'), {
+      ...JSON.parse(JSON.stringify({
+        ...entry,
+        // Rules require actorEmail to match the authenticated identity.
+        actorEmail: email,
+        actorRole: role,
+        createdAt: new Date().toISOString(),
+        source: undefined,
+      })),
+      // Rules require a server timestamp, so entries can't be back-dated.
+      serverTime: serverTimestamp(),
+    });
   } catch (err) {
     console.debug('Audit log cloud write skipped:', err);
   }

@@ -8,7 +8,6 @@ export default function ComplianceLink() {
   const { handleLinkSuccess: onLink, handleLinkSkip: onSkip } = useAppContext();
   const [nin, setNin] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, '');
@@ -26,14 +25,9 @@ export default function ComplianceLink() {
       return;
     }
 
-    setIsLoading(true);
     setError('');
-
-    // Simulate link validation (prototype — no actual NIMC API call)
-    setTimeout(() => {
-      setIsLoading(false);
-      onLink(nin);
-    }, 1500);
+    // Self-declared: local format validation only (no NIMC lookup in v1.0).
+    onLink(nin);
   };
 
   return (
@@ -114,18 +108,15 @@ export default function ComplianceLink() {
           <div className="flex flex-col gap-3 pt-2">
             <button
               type="submit"
-              disabled={isLoading || nin.length !== 11}
+              disabled={nin.length !== 11}
               className="w-full h-14 bg-primary-container text-white font-semibold rounded-xl flex items-center justify-center space-x-2 hover:bg-primary-container/95 active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed shadow-sm"
             >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>Link &amp; Continue to Dashboard</span>
-                  <ArrowRight className="w-5 h-5 text-accent-green" />
-                </>
-              )}
+              <span>Save NIN &amp; continue</span>
+              <ArrowRight className="w-5 h-5 text-accent-green" />
             </button>
+            <p className="text-[11px] text-on-surface-variant text-center">
+              Self-declared — NIMC verification is coming soon.
+            </p>
 
             <button
               type="button"

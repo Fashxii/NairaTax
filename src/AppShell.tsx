@@ -133,7 +133,8 @@ export default function AppShell() {
 
     if (session.contactMethod && !isDemoSession(session)) {
       const cleanEmail = session.contactMethod.toLowerCase().trim();
-      setDoc(doc(db, 'users', cleanEmail), { isNINLinked: true, nin: maskedNin }, { merge: true }).catch(() => {});
+      // Self-declared NIN (server-side NIMC verification is a later phase).
+      setDoc(doc(db, 'users', cleanEmail), { ninDeclared: true, nin: maskedNin }, { merge: true }).catch(() => {});
     }
 
     navigate('/dashboard');

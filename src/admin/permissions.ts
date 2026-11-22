@@ -79,7 +79,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { id: 'users.suspend', module: 'Users & Access', label: 'Suspend / reactivate taxpayers', description: 'Block sign-in for a taxpayer. Also revokes their active sessions.', enforcement: 'server', risk: 'high' },
   { id: 'users.delete', module: 'Users & Access', label: 'Delete taxpayer records', description: 'Remove a taxpayer profile record.', enforcement: 'server', risk: 'critical' },
   { id: 'roles.assign', module: 'Users & Access', label: 'Assign staff roles', description: 'Change a user\'s role (cannot grant Super Admin).', enforcement: 'server', risk: 'critical' },
-  { id: 'roles.manage', module: 'Users & Access', label: 'Edit roles & permission matrix', description: 'Create custom roles and change what each role can do.', enforcement: 'server', risk: 'critical' },
+  { id: 'roles.manage', module: 'Users & Access', label: 'Edit roles & permission matrix', description: 'Create custom roles and change what each role can do. Super Admin only — cannot be delegated.', enforcement: 'server', risk: 'critical' },
   { id: 'overrides.statutory', module: 'Users & Access', label: 'Apply statutory overrides', description: 'Approve reliefs and force CIT bracket / VAT status for a taxpayer.', enforcement: 'server', risk: 'high' },
 
   { id: 'filings.view', module: 'Taxpayer Oversight', label: 'View filings & NRS ledgers', description: 'Read a taxpayer\'s filings, saved data and NRS ledger periods.', enforcement: 'server', risk: 'high' },
@@ -233,7 +233,11 @@ export function permissionsForRole(role: string | undefined | null, rbac: RbacCo
   return new Set(rbac.roles[role]?.permissions ?? []);
 }
 
+/** Permissions only a Super Admin may exercise, whatever the published matrix says (v1.0 security review). */
+export const SUPER_ADMIN_ONLY: PermissionId[] = ['roles.manage'];
+
 export function can(role: string | undefined | null, permission: PermissionId, rbac: RbacConfig): boolean {
+  if (SUPER_ADMIN_ONLY.includes(permission)) return role === SUPER_ADMIN;
   return permissionsForRole(role, rbac).has(permission);
 }
 

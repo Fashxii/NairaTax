@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   step1Schema, step2Schema, step3Schema, step4Schema, step5Schema,
-  individualRegistrationSchema, buildPayload, maskPayload, DEFAULT_VALUES, RegistrationValues,
+  individualRegistrationSchema, buildPayload, maskPayload, dateOfBirthError, DEFAULT_VALUES, RegistrationValues,
 } from './schema';
 import { LGAS, STATES, SIRS } from './states';
-import { normalizePhone, formatNaira, parseNaira, mockVerifyNIN } from './services';
+import { normalizePhone, formatNaira, parseNaira, checkNinFormat, formatLegalName, maskNinForStorage } from './services';
 import { estimateRentRelief } from './catalog';
 
 const valid: RegistrationValues = {
@@ -39,7 +39,7 @@ describe('step schemas', () => {
     expect(issuePaths(r)).toEqual(expect.arrayContaining(['ndpaConsent', 'phone']));
   });
 
-  it('step2: requires NIN verification, valid TIN when toggled, and an LGA within the state', () => {
+  it('step2: requires NIN confirmation, valid TIN when toggled, and an LGA within the state', () => {
     const r = step2Schema.safeParse({ ...valid.identity, ninVerified: false, hasTin: true, tin: '123', lga: 'Kano Municipal' });
     expect(issuePaths(r)).toEqual(expect.arrayContaining(['ninVerified', 'tin', 'lga']));
   });
@@ -57,7 +57,7 @@ describe('step schemas', () => {
     expect(issuePaths(step4Schema.safeParse(DEFAULT_VALUES.reliefs))).toContain('housingStatus');
   });
 
-  it('step5: requires a 10-digit NUBAN and a resolved account name', () => {
+  it('step5: requires a 10-digit NUBAN and an entered account name', () => {
     const r = step5Schema.safeParse({ bankCode: '058', accountNumber: '12345', accountName: '' });
     expect(issuePaths(r)).toEqual(expect.arrayContaining(['accountNumber', 'accountName']));
   });
@@ -100,11 +100,31 @@ describe('helpers', () => {
     expect(estimateRentRelief(5_000_000)).toBe(500_000);
   });
 
-  it('mock NIN lookup is deterministic and rejects repeated digits', async () => {
-    const a = await mockVerifyNIN('12345678901', 'Ada', 'Obi');
-    const b = await mockVerifyNIN('12345678901', 'Ada', 'Obi');
-    expect(a).toEqual(b);
-    expect(a.legalName).toBe('OBI Ada');
-    expect((await mockVerifyNIN('11111111111', 'Ada', 'Obi')).ok).toBe(false);
+  it('local NIN format check rejects bad input and repeated digits, no lookup', () => {
+    expect(checkNinFormat('12345678901').ok).toBe(true);
+    expect(checkNinFormat('1234567890').ok).toBe(false);
+    expect(checkNinFormat('11111111111').ok).toBe(false);
+    expect(checkNinFormat('1234567890a').ok).toBe(false);
+  });
+
+  it('formats the self-declared legal name and storage-masked NIN', () => {
+    expect(formatLegalName(' Ada ', ' Obi ')).toBe('OBI Ada');
+    expect(maskNinForStorage('12345678901')).toBe('***8901');
+    expect(maskNinForStorage('12345678901')).toMatch(/^\*\*\*[0-9]{4}$/);
+  });
+});
+
+describe('date of birth', () => {
+  const today = '2026-06-15';
+  it('requires a past date and age ≥ 16', () => {
+    expect(dateOfBirthError('', today)).toBe('Enter your date of birth');
+    expect(dateOfBirthError('2026-06-15', today)).toMatch(/past/);
+    expect(dateOfBirthError('2030-01-01', today)).toMatch(/past/);
+    expect(dateOfBirthError('2010-06-16', today)).toMatch(/at least 16/);
+    expect(dateOfBirthError('2010-06-15', today)).toBe('');
+    expect(dateOfBirthError('1899-12-31', today)).toMatch(/valid/);
+  });
+  it('step2 flags a missing date of birth', () => {
+    expect(issuePaths(step2Schema.safeParse({ ...valid.identity, dateOfBirth: '' }))).toContain('dateOfBirth');
   });
 });

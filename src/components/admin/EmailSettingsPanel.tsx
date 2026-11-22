@@ -103,6 +103,8 @@ export default function EmailSettingsPanel() {
     if (result.success) {
       setSettings(prev => ({
         ...prev,
+        // The server now holds the password (encrypted); drop it from memory.
+        auth: { ...prev.auth, pass: '' },
         lastTestedAt: new Date().toISOString(),
         lastTestResult: 'success',
       }));
@@ -231,7 +233,8 @@ export default function EmailSettingsPanel() {
                     type={showPassword ? 'text' : 'password'}
                     value={settings.auth.pass}
                     onChange={e => setSettings(s => ({ ...s, auth: { ...s.auth, pass: e.target.value } }))}
-                    placeholder="••••••••••••"
+                    placeholder={settings.lastTestResult === 'success' ? 'Saved on server — leave blank to keep' : '••••••••••••'}
+                    autoComplete="new-password"
                     className="w-full px-3 py-2.5 pr-10 rounded-lg border border-outline-variant bg-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent-green/40 focus:border-accent-green"
                   />
                   <button

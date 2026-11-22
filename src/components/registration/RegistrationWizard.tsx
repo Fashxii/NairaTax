@@ -4,8 +4,9 @@
  * Route: /register
  *  - One react-hook-form instance; the resolver validates only the active step.
  *  - Progress (values, step, verification state) is auto-saved to sessionStorage.
- *  - Step 1 is gated by a real email OTP + a simulated phone OTP.
+ *  - Step 1 is gated by a real email OTP; the phone number is recorded unverified.
  *  - Submit writes a masked profile to users/{email}.profile and signs the user in.
+ *  - NIN, date of birth and bank account name are self-declared (no external lookups in v1.0).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm, type Resolver } from 'react-hook-form';
@@ -17,6 +18,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAppContext } from '../../AppShell';
 import { upsertUser } from '../../utils/authStore';
+import { maskNinForStorage } from '../../registration/services';
 import {
   DEFAULT_VALUES, STEP_KEYS, STEP_SCHEMAS, buildPayload, individualRegistrationSchema, maskPayload,
   type RegistrationValues,
@@ -44,7 +46,6 @@ interface Persisted {
   step: number;
   maxStep: number;
   verifiedEmail: string;
-  verifiedPhone: string;
 }
 
 function loadPersisted(): Partial<Persisted> {
@@ -72,7 +73,6 @@ export default function RegistrationWizard() {
   const [maxStep, setMaxStep] = useState(initial.maxStep ?? 0);
   const [direction, setDirection] = useState(1);
   const [verifiedEmail, setVerifiedEmail] = useState(initial.verifiedEmail ?? '');
-  const [verifiedPhone, setVerifiedPhone] = useState(initial.verifiedPhone ?? '');
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -102,14 +102,14 @@ export default function RegistrationWizard() {
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
     const persist = () => {
-      const data: Persisted = { values: getValues(), step: stepRef.current, maxStep, verifiedEmail, verifiedPhone };
+      const data: Persisted = { values: getValues(), step: stepRef.current, maxStep, verifiedEmail };
       sessionStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(data));
       setSavedAt(Date.now());
     };
     persist();
     const sub = watch(() => { clearTimeout(t); t = setTimeout(persist, 400); });
     return () => { clearTimeout(t); sub.unsubscribe(); };
-  }, [watch, getValues, step, maxStep, verifiedEmail, verifiedPhone]);
+  }, [watch, getValues, step, maxStep, verifiedEmail]);
 
   const goTo = (i: number) => {
     if (i > maxStep || i === step) return;
@@ -148,8 +148,8 @@ export default function RegistrationWizard() {
     try {
       await setDoc(doc(db, 'users', payload.auth.email), {
         profile: { ...masked, completedAt: new Date().toISOString(), version: 1 },
-        isNINLinked: true,
-        nin: masked.identity.nin,
+        ninDeclared: true,
+        nin: maskNinForStorage(payload.identity.nin),
       }, { merge: true });
     } catch (err: any) {
       if (!import.meta.env.DEV) {
@@ -169,7 +169,7 @@ export default function RegistrationWizard() {
     async (values) => {
       if (step === 0) {
         const email = values.auth.email.trim().toLowerCase();
-        if (verifiedEmail === email && verifiedPhone === values.auth.phone) return advance();
+        if (verifiedEmail === email) return advance();
         setVerifying(true);
         return;
       }
@@ -185,7 +185,7 @@ export default function RegistrationWizard() {
   const values = getValues();
   const [wEmail = '', wPhone = ''] = watch(['auth.email', 'auth.phone']);
   const normEmail = wEmail.trim().toLowerCase();
-  const isStep1Verified = verifiedEmail === normEmail && verifiedPhone === wPhone;
+  const isStep1Verified = verifiedEmail === normEmail;
   const current = STEPS[step];
   const StepBody = [Step1Credentials, Step2Identity, Step3Income, Step4Reliefs][step];
 
@@ -225,9 +225,7 @@ export default function RegistrationWizard() {
                       email={normEmail}
                       phone={wPhone}
                       fullName={`${values.auth.firstName.trim()} ${values.auth.lastName.trim()}`}
-                      emailAlreadyVerified={verifiedEmail === normEmail}
-                      onEmailVerified={() => setVerifiedEmail(normEmail)}
-                      onPhoneVerified={() => { setVerifiedPhone(wPhone); setVerifying(false); advance(); }}
+                      onVerified={() => { setVerifiedEmail(normEmail); setVerifying(false); advance(); }}
                       onEdit={() => setVerifying(false)}
                     />
                   ) : (

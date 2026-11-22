@@ -10,7 +10,7 @@
  *   - Falls back to sessionStorage + console display of code
  *   - Use code '123456' or whatever is shown in the browser console
  */
-import { auth, signInWithCustomToken } from '../lib/firebase';
+import { auth, signInWithCustomToken, appCheckHeaders } from '../lib/firebase';
 // ─── Broadcast for in-app display of dev OTP ─────────────────────────
 // A custom event is dispatched so the Verification page can show the code
 // on-screen when no real email provider is connected (local dev only).
@@ -80,7 +80,7 @@ export async function sendOTPEmail(
   try {
     const res = await fetch('/api/auth/otp/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await appCheckHeaders()) },
       body: JSON.stringify({ email: cleanEmail, fullName, accountType }),
     });
 
@@ -180,7 +180,7 @@ export async function verifyOTP(
   try {
     const res = await fetch('/api/auth/otp/verify', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await appCheckHeaders()) },
       body: JSON.stringify({ email, code: enteredCode }),
     });
 

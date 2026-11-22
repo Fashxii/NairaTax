@@ -10,11 +10,11 @@
 
 import { getStored, setStored } from './store';
 import { renderEmail, getTemplate } from './emailTemplates';
-import { auth } from '../lib/firebase';
+import { auth, appCheckHeaders } from '../lib/firebase';
 
 /** Email endpoints are staff-only: send the Firebase ID token so the function can check permissions. */
 async function authHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(await appCheckHeaders()) };
   try {
     const token = await auth?.currentUser?.getIdToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -118,11 +118,23 @@ const SANDBOX_EMAILS_KEY = 'email_sandbox';
 // ─── SMTP Settings Management ─────────────────────────────────────────
 
 export function getSMTPSettings(): SMTPSettings | null {
-  return getStored<SMTPSettings | null>(SMTP_SETTINGS_KEY, null);
+  const stored = getStored<SMTPSettings | null>(SMTP_SETTINGS_KEY, null);
+  if (stored?.auth?.pass) {
+    // Purge any password saved by older versions: it lives only on the server now.
+    const clean = { ...stored, auth: { ...stored.auth, pass: '' } };
+    setStored(SMTP_SETTINGS_KEY, clean);
+    return clean;
+  }
+  return stored;
 }
 
+/**
+ * Persist non-secret SMTP settings in this browser. The password is never
+ * stored client-side; it is sent once to the testSMTP function, which keeps
+ * it encrypted on the server.
+ */
 export function saveSMTPSettings(settings: SMTPSettings): void {
-  setStored(SMTP_SETTINGS_KEY, settings);
+  setStored(SMTP_SETTINGS_KEY, { ...settings, auth: { ...settings.auth, pass: '' } });
 }
 
 export function getPresetForProvider(provider: SMTPProvider): SMTPPreset | undefined {

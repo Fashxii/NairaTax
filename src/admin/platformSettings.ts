@@ -28,11 +28,13 @@ export interface FeatureFlagDef {
   description: string;
   /** Where the flag takes effect, shown to admins. */
   affects: string;
+  /** Not production-ready (simulated integration): forced off and locked in v1.0. */
+  comingSoon?: boolean;
 }
 
 export const FEATURE_FLAGS: FeatureFlagDef[] = [
   { id: 'nrsReturns', label: 'NRS Returns workspace', description: 'Bank-statement ledger, VAT/WHT/CIT schedules and exports.', affects: 'Dashboard → NRS Returns tab' },
-  { id: 'bankSync', label: 'Bank sync & CSV import', description: 'Auto-sync bank feeds panel on the overview.', affects: 'Dashboard → Overview' },
+  { id: 'bankSync', label: 'Bank sync (Mono)', description: 'Live bank-feed sync. Coming soon — the current panel is a simulation and is hidden in v1.0. CSV import stays available in NRS Returns.', affects: 'Dashboard → Overview', comingSoon: true },
   { id: 'eInvoicing', label: 'E-Invoicing', description: 'Create VAT invoices and PDFs.', affects: 'Dashboard → E-Invoicing tab' },
   { id: 'payroll', label: 'Payroll & PAYE', description: 'Employee payroll and payslips (business accounts).', affects: 'Dashboard → Payroll tab' },
   { id: 'tccReadiness', label: 'TCC readiness', description: 'Tax Clearance Certificate readiness checker.', affects: 'Dashboard → TCC Readiness tab' },
@@ -79,7 +81,7 @@ export const SESSION_LIMITS = {
 
 export function defaultSettings(): PlatformSettings {
   return {
-    flags: Object.fromEntries(FEATURE_FLAGS.map((f) => [f.id, true])) as Record<FeatureFlag, boolean>,
+    flags: Object.fromEntries(FEATURE_FLAGS.map((f) => [f.id, !f.comingSoon])) as Record<FeatureFlag, boolean>,
     maintenance: {
       enabled: false,
       message: 'DIYtax9ja is undergoing scheduled maintenance. Please check back shortly.',
@@ -103,7 +105,7 @@ export function normalizeSettings(raw: unknown): PlatformSettings {
   if (r.flags && typeof r.flags === 'object') {
     for (const f of FEATURE_FLAGS) {
       const v = (r.flags as Record<string, unknown>)[f.id];
-      if (typeof v === 'boolean') base.flags[f.id] = v;
+      if (typeof v === 'boolean' && !f.comingSoon) base.flags[f.id] = v;
     }
   }
   if (r.maintenance && typeof r.maintenance === 'object') {

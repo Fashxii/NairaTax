@@ -27,13 +27,11 @@
     "noUnusedParameters": true
   },
   "include": [
-    "src/**/*",
-    "lib/**/*"
+    "src/**/*", "types/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "app",
     "functions"
   ]
 }

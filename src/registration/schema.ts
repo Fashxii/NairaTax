@@ -25,6 +25,24 @@ export const step1Schema = z.object({
 });
 
 // ─── Step 2: Identity & jurisdiction ──────────────────────────────────
+export const MIN_REGISTRATION_AGE = 16;
+
+/** Whole years between an ISO date of birth and `today` (both YYYY-MM-DD). */
+export function ageOn(dob: string, today: string): number {
+  const [by, bm, bd] = dob.split('-').map(Number);
+  const [ty, tm, td] = today.split('-').map(Number);
+  return ty - by - (tm < bm || (tm === bm && td < bd) ? 1 : 0);
+}
+
+/** Returns an error message for an invalid self-declared date of birth, or '' if valid. */
+export function dateOfBirthError(dob: string, today = new Date().toISOString().slice(0, 10)): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || Number.isNaN(Date.parse(dob))) return 'Enter your date of birth';
+  if (dob < '1900-01-01') return 'Enter a valid date of birth';
+  if (dob >= today) return 'Date of birth must be in the past';
+  if (ageOn(dob, today) < MIN_REGISTRATION_AGE) return `You must be at least ${MIN_REGISTRATION_AGE} years old to register`;
+  return '';
+}
+
 export const step2Schema = z.object({
   nin: z.string().regex(/^\d{11}$/, 'NIN must be exactly 11 digits'),
   ninVerified: z.boolean(),
@@ -38,7 +56,9 @@ export const step2Schema = z.object({
   city: z.string().trim().min(2, 'Enter your city / town'),
   landmark: z.string().trim().max(100, 'Keep the landmark under 100 characters'),
 }).superRefine((v, ctx) => {
-  if (!v.ninVerified) ctx.addIssue({ code: 'custom', path: ['ninVerified'], message: 'Verify your NIN to continue' });
+  if (!v.ninVerified) ctx.addIssue({ code: 'custom', path: ['ninVerified'], message: 'Confirm your NIN to continue' });
+  const dobError = dateOfBirthError(v.dateOfBirth);
+  if (dobError) ctx.addIssue({ code: 'custom', path: ['dateOfBirth'], message: dobError });
   if (v.hasTin && !/^\d{10,12}$/.test(v.tin)) ctx.addIssue({ code: 'custom', path: ['tin'], message: 'TIN must be 10–12 digits' });
   if (v.state && v.lga && !LGAS[v.state]?.includes(v.lga)) ctx.addIssue({ code: 'custom', path: ['lga'], message: 'Select an LGA in your state' });
 });
@@ -93,7 +113,7 @@ export const step4Schema = z.object({
 export const step5Schema = z.object({
   bankCode: z.string().min(1, 'Select your bank'),
   accountNumber: z.string().regex(/^\d{10}$/, 'NUBAN must be exactly 10 digits'),
-  accountName: z.string().trim().min(2, 'Account name has not been resolved yet'),
+  accountName: z.string().trim().min(2, 'Enter the account name'),
 });
 
 // ─── Unified schema ───────────────────────────────────────────────────

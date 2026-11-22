@@ -4,8 +4,9 @@
  * Route: /register/business
  *  - One react-hook-form instance; the resolver validates only the active step.
  *  - Progress is auto-saved to sessionStorage.
- *  - Step 2 (signatory) is gated by a real email OTP + simulated SMS/WhatsApp OTP.
+ *  - Step 2 (signatory) is gated by a real email OTP; the phone number is recorded unverified.
  *  - Submit writes a masked profile to users/{email}.profile and signs in as 'business'.
+ *  - CAC number, company name, signatory NIN and bank account name are self-declared (no external lookups in v1.0).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm, type Resolver } from 'react-hook-form';
@@ -17,6 +18,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { useAppContext } from '../../../AppShell';
 import { upsertUser } from '../../../utils/authStore';
+import { maskNinForStorage } from '../../../registration/services';
 import {
   CORP_DEFAULT_VALUES, CORP_STEP_KEYS, CORP_STEP_SCHEMAS, buildCorporatePayload, corporateTaxRegistrationSchema,
   maskCorporatePayload, type CorporateValues,
@@ -33,7 +35,7 @@ export const CORPORATE_STORAGE_KEY = 'diytax9ja_corporate_registration_v1';
 
 const STEPS = [
   { title: 'Entity', heading: 'Corporate entity', sub: 'Incorporation details as registered with the CAC.' },
-  { title: 'Signatory', heading: 'Authorised signatory', sub: 'The officer who files on behalf of the entity. We verify their identity and contact details.' },
+  { title: 'Signatory', heading: 'Authorised signatory', sub: 'The officer who files on behalf of the entity. We confirm their email address.' },
   { title: 'CIT', heading: 'CIT classification', sub: 'Turnover, assets and sector determine your Company Income Tax bracket.' },
   { title: 'VAT', heading: 'VAT profile', sub: 'We check your VAT obligations against the statutory threshold.' },
   { title: 'Settlement', heading: 'Settlement & activation', sub: 'Corporate account for refunds and remittances, and a final review.' },
@@ -46,7 +48,6 @@ interface Persisted {
   step: number;
   maxStep: number;
   verifiedEmail: string;
-  verifiedPhone: string;
 }
 
 function loadPersisted(): Partial<Persisted> {
@@ -73,7 +74,6 @@ export default function CorporateWizard() {
   const [maxStep, setMaxStep] = useState(initial.maxStep ?? 0);
   const [direction, setDirection] = useState(1);
   const [verifiedEmail, setVerifiedEmail] = useState(initial.verifiedEmail ?? '');
-  const [verifiedPhone, setVerifiedPhone] = useState(initial.verifiedPhone ?? '');
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -102,14 +102,14 @@ export default function CorporateWizard() {
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
     const persist = () => {
-      const data: Persisted = { values: getValues(), step: stepRef.current, maxStep, verifiedEmail, verifiedPhone };
+      const data: Persisted = { values: getValues(), step: stepRef.current, maxStep, verifiedEmail };
       sessionStorage.setItem(CORPORATE_STORAGE_KEY, JSON.stringify(data));
       setSavedAt(Date.now());
     };
     persist();
     const sub = watch(() => { clearTimeout(t); t = setTimeout(persist, 400); });
     return () => { clearTimeout(t); sub.unsubscribe(); };
-  }, [watch, getValues, step, maxStep, verifiedEmail, verifiedPhone]);
+  }, [watch, getValues, step, maxStep, verifiedEmail]);
 
   const goTo = (i: number) => {
     if (i > maxStep || i === step) return;
@@ -149,8 +149,8 @@ export default function CorporateWizard() {
     try {
       await setDoc(doc(db, 'users', email), {
         profile: { ...masked, kind: 'corporate', completedAt: new Date().toISOString(), version: 1 },
-        isNINLinked: true,
-        nin: masked.signatory.nin,
+        ninDeclared: true,
+        nin: maskNinForStorage(payload.signatory.nin),
       }, { merge: true });
     } catch (err: any) {
       if (!import.meta.env.DEV) {
@@ -168,7 +168,7 @@ export default function CorporateWizard() {
 
   const [wEmail = '', wPhone = '', wOfficer = '', wCompany = ''] = watch(['signatory.email', 'signatory.phone', 'signatory.fullName', 'entity.companyName']);
   const normEmail = wEmail.trim().toLowerCase();
-  const isSignatoryVerified = verifiedEmail === normEmail && verifiedPhone === wPhone;
+  const isSignatoryVerified = verifiedEmail === normEmail;
 
   const onPrimary = handleSubmit(
     async () => {
@@ -222,9 +222,7 @@ export default function CorporateWizard() {
                       fullName={wCompany || wOfficer}
                       accountType="business"
                       unlockLabel="Verify & continue to CIT"
-                      emailAlreadyVerified={verifiedEmail === normEmail}
-                      onEmailVerified={() => setVerifiedEmail(normEmail)}
-                      onPhoneVerified={() => { setVerifiedPhone(wPhone); setVerifying(false); advance(); }}
+                      onVerified={() => { setVerifiedEmail(normEmail); setVerifying(false); advance(); }}
                       onEdit={() => setVerifying(false)}
                     />
                   ) : (

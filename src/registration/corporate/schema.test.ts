@@ -4,7 +4,7 @@ import {
   corporateTaxRegistrationSchema, buildCorporatePayload, maskCorporatePayload, CORP_DEFAULT_VALUES, type CorporateValues,
 } from './schema';
 import { classifyCIT, isVatMandatory, COMMERCIAL_BANKS, VAT_MANDATORY_THRESHOLD } from './catalog';
-import { maskCacNumber, mockVerifyCAC } from './services';
+import { maskCacNumber, checkCacFormat } from './services';
 
 const valid: CorporateValues = {
   entity: { entityType: 'LTD', rcNumber: 'RC-1849201', cacVerified: true, companyName: 'Acme Technologies Nigeria Ltd', hasTin: true, tin: '249102940001', incorporationDate: '2023-04-15', street: '5 Admiralty Way', city: 'Ikeja', state: 'Lagos', lga: 'Ikeja' },
@@ -44,10 +44,11 @@ describe('corporate schemas', () => {
   it('accepts a complete registration', () => {
     expect(corporateTaxRegistrationSchema.safeParse(valid).success).toBe(true);
   });
-  it('step1: entity type, prefix-matched CAC number, verification, TIN, future date', () => {
+  it('step1: entity type, prefix-matched CAC number, confirmation, company name, TIN, future date', () => {
     expect(paths(corpStep1Schema.safeParse({ ...valid.entity, entityType: '' }))).toContain('entityType');
     expect(paths(corpStep1Schema.safeParse({ ...valid.entity, entityType: 'BN' }))).toContain('rcNumber');
     expect(paths(corpStep1Schema.safeParse({ ...valid.entity, cacVerified: false }))).toContain('cacVerified');
+    expect(paths(corpStep1Schema.safeParse({ ...valid.entity, companyName: ' ' }))).toContain('companyName');
     expect(paths(corpStep1Schema.safeParse({ ...valid.entity, tin: '123' }))).toContain('tin');
     expect(paths(corpStep1Schema.safeParse({ ...valid.entity, incorporationDate: '2999-01-01' }))).toContain('incorporationDate');
   });
@@ -97,10 +98,10 @@ describe('helpers', () => {
     expect(COMMERCIAL_BANKS.some((b) => b.name === 'OPay')).toBe(false);
     expect(COMMERCIAL_BANKS.some((b) => b.code === '058')).toBe(true);
   });
-  it('mock CAC lookup is deterministic and enforces prefix', async () => {
-    const a = await mockVerifyCAC('RC-1849201', 'LTD');
-    expect(a).toEqual(await mockVerifyCAC('RC-1849201', 'LTD'));
-    expect(a.ok && a.companyName.endsWith('Nigeria Ltd')).toBe(true);
-    expect((await mockVerifyCAC('RC-1849201', 'BN')).ok).toBe(false);
+  it('local CAC format check enforces prefix and rejects repeated digits', () => {
+    expect(checkCacFormat('RC-1849201', 'LTD').ok).toBe(true);
+    expect(checkCacFormat('RC-1849201', 'BN').ok).toBe(false);
+    expect(checkCacFormat('RC-1111', 'LTD').ok).toBe(false);
+    expect(checkCacFormat('RC-1849201', '').ok).toBe(false);
   });
 });

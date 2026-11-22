@@ -30,7 +30,10 @@ export const corpStep1Schema = z.object({
   if (!v.entityType) add('entityType', 'Select the entity type');
   const prefix = prefixFor(v.entityType);
   if (!new RegExp(`^${prefix}-\\d{4,8}$`).test(v.rcNumber)) add('rcNumber', `Enter a valid CAC number (${prefix}- followed by 4–8 digits)`);
-  else if (!v.cacVerified) add('cacVerified', 'Verify the CAC number to continue');
+  else if (!v.cacVerified) add('cacVerified', 'Confirm the CAC number to continue');
+  const name = v.companyName.trim();
+  if (name.length < 2) add('companyName', 'Enter the registered company name');
+  else if (name.length > 160) add('companyName', 'Company name is too long');
   if (v.hasTin && !/^\d{10,12}$/.test(v.tin)) add('tin', 'Corporate TIN must be 10–12 digits');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.incorporationDate)) add('incorporationDate', 'Select the date of incorporation');
   else if (v.incorporationDate > todayISO()) add('incorporationDate', 'Date cannot be in the future');
@@ -49,7 +52,7 @@ export const corpStep2Schema = z.object({
   ndpaConsent: z.boolean().refine((v) => v === true, 'Authorisation is required to file on behalf of the entity'),
 }).superRefine((v, ctx) => {
   if (!v.designation) ctx.addIssue({ code: 'custom', path: ['designation'], message: 'Select the signatory’s designation' });
-  if (!v.ninVerified) ctx.addIssue({ code: 'custom', path: ['ninVerified'], message: 'Verify the signatory’s NIN to continue' });
+  if (!v.ninVerified) ctx.addIssue({ code: 'custom', path: ['ninVerified'], message: 'Confirm the signatory’s NIN to continue' });
 });
 
 // ─── Step 3: CIT classification ──────────────────────────────────────
@@ -78,7 +81,7 @@ export const corpStep4Schema = z.object({
 export const corpStep5Schema = z.object({
   bankCode: z.string().min(1, 'Select the corporate bank'),
   accountNumber: z.string().regex(/^\d{10}$/, 'NUBAN must be exactly 10 digits'),
-  accountName: z.string().trim().min(2, 'Account name has not been resolved yet'),
+  accountName: z.string().trim().min(2, 'Enter the account name'),
 });
 
 export const corporateTaxRegistrationSchema = z.object({
@@ -121,7 +124,7 @@ export function buildCorporatePayload(v: CorporateValues) {
     entity: {
       entityType: e.entityType,
       rcNumber: e.rcNumber,
-      companyName: e.companyName,
+      companyName: e.companyName.trim(),
       corporateTin: e.hasTin ? formatCorporateTin(e.tin) : null,
       incorporationDate: e.incorporationDate,
       registeredAddress: { street: e.street.trim(), city: e.city.trim(), lga: e.lga, state: e.state },

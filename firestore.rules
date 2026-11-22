@@ -55,9 +55,13 @@ service cloud.firestore {
       // Super Admins can do anything to a user record.
       allow create, update, delete: if isSuper();
 
-      // Owners may record their own NIN-link status and registration profile, and nothing else.
+      // Owners may record a self-declared NIN (masked: *** + last 4 digits) and
+      // their registration profile, and nothing else. `isNINLinked` / `ninVerified`
+      // are reserved for server-side identity verification.
       allow update: if isOwner()
-        && changedKeys().hasOnly(['isNINLinked', 'nin', 'profile'])
+        && changedKeys().hasOnly(['ninDeclared', 'nin', 'profile'])
+        && (!('ninDeclared' in request.resource.data) || request.resource.data.ninDeclared is bool)
+        && (!('nin' in request.resource.data) || (request.resource.data.nin is string && request.resource.data.nin.matches('^[*]{3}[0-9]{4}$')))
         && (!('profile' in request.resource.data) || request.resource.data.profile is map);
 
       // Non-super staff, by permission (always limited to taxpayer accounts).
@@ -65,11 +69,13 @@ service cloud.firestore {
         && request.resource.data.get('role', 'taxpayer') == 'taxpayer';
       allow update: if hasPerm('users.suspend') && targetIsTaxpayer()
         && changedKeys().hasOnly(['isActive', 'updatedAt']);
-      // Assigning roles: never to/from super_admin, never your own role.
+      // Assigning roles: never to/from super_admin, never your own role, and never
+      // a role that can itself hand out roles (prevents escalation chains).
       allow update: if hasPerm('roles.assign')
         && resource.data.get('role', 'taxpayer') != 'super_admin'
         && request.resource.data.role != 'super_admin'
         && request.auth.token.email != email
+        && !get(rbacPath()).data.roles.get(request.resource.data.role, {}).get('permissions', []).hasAny(['roles.manage', 'roles.assign'])
         && changedKeys().hasOnly(['role', 'updatedAt']);
       allow update: if hasPerm('overrides.statutory') && targetIsTaxpayer()
         && changedKeys().hasOnly(['statutoryOverrides']);
@@ -106,9 +112,13 @@ service cloud.firestore {
       // sign-in (maintenance mode, landing copy) and by every taxpayer's engines.
       allow read: if docId in ['settings', 'content', 'tax_rules'] || (docId == 'rbac' && isStaff());
 
-      allow write: if docId == 'rbac' && hasPerm('roles.manage');
+      // The permission matrix can only be changed by a Super Admin (no delegation).
+      allow write: if docId == 'rbac' && isSuper();
       allow write: if docId == 'content' && hasPerm('cms.edit');
-      allow write: if docId == 'tax_rules' && (hasPerm('tax_rules.edit') || hasPerm('tax_rules.verify'));
+      // Figures need tax_rules.edit; sign-off-only roles may touch `signoffs` alone.
+      allow write: if docId == 'tax_rules' && hasPerm('tax_rules.edit');
+      allow update: if docId == 'tax_rules' && hasPerm('tax_rules.verify')
+        && changedKeys().hasOnly(['signoffs', 'updatedAt', 'updatedBy']);
 
       // settings: each slice needs its own permission.
       allow create: if docId == 'settings' && isSuper();
@@ -121,12 +131,23 @@ service cloud.firestore {
     }
 
     // ─── Admin audit trail — append-only ──────────────────────────────────
+    // Entries must carry the caller's real identity, a server timestamp and
+    // only the known fields, so staff can't forge or back-date events.
     match /admin_audit_logs/{logId} {
       allow read: if hasPerm('audit.view');
       allow create: if isStaff()
         && request.resource.data.actorEmail == request.auth.token.email
-        && request.resource.data.actorRole == role();
+        && request.resource.data.actorRole == role()
+        && request.resource.data.serverTime == request.time
+        && request.resource.data.action is string && request.resource.data.action.size() <= 120
+        && request.resource.data.keys().hasOnly(['id', 'actorName', 'actorEmail', 'actorRole', 'action', 'module',
+             'severity', 'ipAddress', 'timestamp', 'beforeState', 'afterState', 'createdAt', 'serverTime']);
       allow update, delete: if false;
+    }
+
+    // Per-IP rate-limit counters — Cloud Functions only.
+    match /ip_rate_limits/{docId} {
+      allow read, write: if false;
     }
 
     // SMTP settings — server-only (Admin SDK bypasses rules)

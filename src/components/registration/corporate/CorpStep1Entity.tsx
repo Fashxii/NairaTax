@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { motion, AnimatePresence } from 'motion/react';
-import { BadgeCheck, Building2, Info, Loader2, Lock } from 'lucide-react';
+import { BadgeCheck, Building2, Info } from 'lucide-react';
 import type { CorporateValues } from '../../../registration/corporate/schema';
 import { ENTITY_TYPES, prefixFor } from '../../../registration/corporate/catalog';
-import { maskCacNumber, mockVerifyCAC } from '../../../registration/corporate/services';
+import { checkCacFormat, maskCacNumber } from '../../../registration/corporate/services';
 import { digitsOnly } from '../../../registration/services';
 import { LGAS, STATES } from '../../../registration/states';
 import { Field, Select, TextInput, Toggle } from '../ui';
@@ -12,27 +12,22 @@ import { Field, Select, TextInput, Toggle } from '../ui';
 export default function CorpStep1Entity() {
   const { register, control, setValue, getValues, clearErrors, formState: { errors } } = useFormContext<CorporateValues>();
   const e = errors.entity;
-  const [entityType, rcNumber, cacVerified, companyName, hasTin, state] = useWatch({
-    control, name: ['entity.entityType', 'entity.rcNumber', 'entity.cacVerified', 'entity.companyName', 'entity.hasTin', 'entity.state'],
+  const [entityType, rcNumber, cacVerified, hasTin, state] = useWatch({
+    control, name: ['entity.entityType', 'entity.rcNumber', 'entity.cacVerified', 'entity.hasTin', 'entity.state'],
   });
-  const [checking, setChecking] = useState(false);
   const [cacError, setCacError] = useState('');
   const prefix = prefixFor(entityType);
 
   const resetCac = () => {
-    if (getValues('entity.cacVerified')) {
-      setValue('entity.cacVerified', false);
-      setValue('entity.companyName', '');
-    }
+    if (getValues('entity.cacVerified')) setValue('entity.cacVerified', false);
     setCacError('');
   };
 
-  const verifyCac = async () => {
-    setChecking(true); setCacError('');
-    const res = await mockVerifyCAC(getValues('entity.rcNumber'), getValues('entity.entityType'));
-    setChecking(false);
+  // Local format confirmation only — the CAC number is self-declared (no CAC register lookup in v1.0).
+  const confirmCac = () => {
+    const res = checkCacFormat(getValues('entity.rcNumber'), getValues('entity.entityType'));
     if (!res.ok) { setCacError(res.error); return; }
-    setValue('entity.companyName', res.companyName, { shouldDirty: true });
+    setCacError('');
     setValue('entity.cacVerified', true, { shouldDirty: true });
     clearErrors(['entity.rcNumber', 'entity.cacVerified']);
   };
@@ -53,7 +48,7 @@ export default function CorpStep1Entity() {
                   onClick={() => {
                     if (field.value === t.id) return;
                     field.onChange(t.id);
-                    // Re-mask the CAC number for the new prefix and require re-verification.
+                    // Re-mask the CAC number for the new prefix and require re-confirmation.
                     setValue('entity.rcNumber', maskCacNumber(getValues('entity.rcNumber'), t.id));
                     resetCac();
                   }}
@@ -92,22 +87,26 @@ export default function CorpStep1Entity() {
               value={field.value} ref={field.ref} onBlur={field.onBlur}
               onChange={(ev) => { field.onChange(maskCacNumber(ev.target.value, entityType)); resetCac(); }} />
           )} />
-          <button type="button" id="corp-verify-cac" onClick={verifyCac}
-            disabled={checking || cacVerified || !entityType || !/^(RC|BN|LP)-\d{4,8}$/.test(rcNumber)}
+          <button type="button" id="corp-verify-cac" onClick={confirmCac}
+            disabled={cacVerified || !entityType || !/^(RC|BN|LP)-\d{4,8}$/.test(rcNumber)}
             className="h-12 px-4 rounded-xl text-xs font-bold bg-primary-container text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer shrink-0">
-            {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : cacVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
-            {checking ? 'Checking CAC…' : cacVerified ? 'Verified' : 'Verify CAC'}
+            {cacVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
+            {cacVerified ? 'Confirmed' : 'Confirm number'}
           </button>
         </div>
       </Field>
+      {cacVerified && (
+        <p id="corp-cac-note" className="flex items-start gap-2 text-xs text-on-surface bg-accent-green/10 border border-accent-green/40 rounded-xl p-3.5 -mt-2">
+          <BadgeCheck className="w-4 h-4 text-accent-green shrink-0 mt-0.5" /> Format confirmed (self-declared). CAC register verification is coming soon.
+        </p>
+      )}
 
-      <Field label="Registered Business Name" htmlFor="corp-name"
-        hint={cacVerified ? 'Locked to the CAC record (simulated lookup).' : 'Auto-filled from the CAC register after verification.'}>
+      <Field label="Registered Business Name" htmlFor="corp-name" error={e?.companyName?.message}
+        hint="Enter the name exactly as it appears on your CAC certificate.">
         <div className="relative">
-          <TextInput id="corp-name" readOnly value={companyName} placeholder="—"
-            className={`pr-10 ${cacVerified ? 'border-accent-green bg-accent-green/5' : ''}`} />
-          {cacVerified ? <Lock className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-accent-green" />
-            : <Building2 className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />}
+          <TextInput id="corp-name" autoComplete="organization" placeholder="e.g. Acme Technologies Nigeria Ltd"
+            className="pr-10" invalid={!!e?.companyName} {...register('entity.companyName')} />
+          <Building2 className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
         </div>
       </Field>
 

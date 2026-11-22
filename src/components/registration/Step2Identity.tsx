@@ -1,30 +1,30 @@
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { motion, AnimatePresence } from 'motion/react';
-import { BadgeCheck, Fingerprint, Landmark, Loader2 } from 'lucide-react';
+import { BadgeCheck, Fingerprint, Landmark } from 'lucide-react';
 import type { RegistrationValues } from '../../registration/schema';
 import { LGAS, SIRS, STATES } from '../../registration/states';
-import { digitsOnly, mockVerifyNIN } from '../../registration/services';
+import { checkNinFormat, digitsOnly, formatLegalName } from '../../registration/services';
 import { Field, Select, TextInput, Toggle } from './ui';
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function Step2Identity() {
   const { register, control, setValue, getValues, clearErrors, formState: { errors } } = useFormContext<RegistrationValues>();
   const e = errors.identity;
-  const [state, ninVerified, legalName, dob, hasTin, nin] = useWatch({
-    control, name: ['identity.state', 'identity.ninVerified', 'identity.legalName', 'identity.dateOfBirth', 'identity.hasTin', 'identity.nin'],
+  const [state, ninVerified, legalName, hasTin, nin] = useWatch({
+    control, name: ['identity.state', 'identity.ninVerified', 'identity.legalName', 'identity.hasTin', 'identity.nin'],
   });
-  const [checking, setChecking] = useState(false);
   const [ninError, setNinError] = useState('');
   const authority = state ? SIRS[state] : undefined;
 
-  const verifyNin = async () => {
+  // Local format check only — NIN is self-declared (no NIMC lookup in v1.0).
+  const confirmNin = () => {
     const { identity, auth } = getValues();
-    setChecking(true); setNinError('');
-    const res = await mockVerifyNIN(identity.nin, auth.firstName, auth.lastName);
-    setChecking(false);
-    if (!res.ok) { setNinError(res.error!); return; }
-    setValue('identity.legalName', res.legalName!, { shouldDirty: true });
-    setValue('identity.dateOfBirth', res.dateOfBirth!, { shouldDirty: true });
+    const res = checkNinFormat(identity.nin);
+    if (!res.ok) { setNinError(res.error); return; }
+    setNinError('');
+    setValue('identity.legalName', formatLegalName(auth.firstName, auth.lastName), { shouldDirty: true });
     setValue('identity.ninVerified', true, { shouldDirty: true });
     clearErrors(['identity.nin', 'identity.ninVerified']);
   };
@@ -46,18 +46,17 @@ export default function Step2Identity() {
                   if (getValues('identity.ninVerified')) {
                     setValue('identity.ninVerified', false);
                     setValue('identity.legalName', '');
-                    setValue('identity.dateOfBirth', '');
                   }
                   setNinError('');
                 }} />
               <Fingerprint className="w-4.5 h-4.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
             </div>
           )} />
-          <button type="button" id="reg-verify-nin" onClick={verifyNin}
-            disabled={checking || ninVerified || (nin ?? '').length !== 11}
+          <button type="button" id="reg-verify-nin" onClick={confirmNin}
+            disabled={ninVerified || (nin ?? '').length !== 11}
             className="h-12 px-4 rounded-xl text-xs font-bold bg-primary-container text-white disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer shrink-0">
-            {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : ninVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
-            {checking ? 'Checking…' : ninVerified ? 'Verified' : 'Verify NIN'}
+            {ninVerified ? <BadgeCheck className="w-4 h-4 text-accent-green" /> : null}
+            {ninVerified ? 'Confirmed' : 'Confirm NIN'}
           </button>
         </div>
       </Field>
@@ -66,20 +65,21 @@ export default function Step2Identity() {
         {ninVerified && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden">
-            <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-accent-green/10 border border-accent-green/40">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Legal name (NIMC)</p>
-                <p id="reg-legal-name" className="text-sm font-bold text-on-surface mt-0.5">{legalName}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Date of birth</p>
-                <p id="reg-dob" className="text-sm font-bold text-on-surface mt-0.5 font-mono">{dob}</p>
-              </div>
-              <p className="col-span-2 text-[10px] text-on-surface-variant/80">Simulated NIMC lookup — replace with live verification before launch.</p>
+            <div className="p-4 rounded-xl bg-accent-green/10 border border-accent-green/40">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Legal name</p>
+              <p id="reg-legal-name" className="text-sm font-bold text-on-surface mt-0.5">{legalName}</p>
+              <p className="text-[10px] text-on-surface-variant/80 mt-2">Self-declared — NIMC verification is coming soon.</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Date of birth (self-declared) */}
+      <Field label="Date of birth" htmlFor="reg-dob" error={e?.dateOfBirth?.message}
+        hint="As shown on your NIN slip. You must be at least 16.">
+        <TextInput id="reg-dob" type="date" autoComplete="bday" min="1900-01-01" max={todayISO()}
+          invalid={!!e?.dateOfBirth} {...register('identity.dateOfBirth')} />
+      </Field>
 
       {/* TIN */}
       <Controller control={control} name="identity.hasTin" render={({ field }) => (

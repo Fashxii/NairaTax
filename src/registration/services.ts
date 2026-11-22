@@ -1,10 +1,10 @@
 /**
- * services.ts — Input masks, formatting, and simulated external services
- * (NIMC NIN lookup, NIBSS name enquiry, SMS/WhatsApp OTP).
+ * services.ts — Input masks, formatting, and local (offline) format checks.
  *
- * The mocks are deterministic so QA can reproduce results. Replace them with
- * real Cloud Function calls before production use.
+ * No external identity / bank lookups are performed in v1.0: NIN, bank
+ * account name, etc. are self-declared by the user and only format-checked here.
  */
+import { validateNIN } from '../utils/validators';
 
 // ─── Masks & formatting ──────────────────────────────────────────────
 export const digitsOnly = (v: string, max: number) => v.replace(/\D/g, '').slice(0, max);
@@ -28,43 +28,18 @@ export const parseNaira = (raw: string) => {
   return d ? Number(d) : 0;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// ─── Mock NIMC NIN verification ──────────────────────────────────────
-export interface NinLookupResult {
-  ok: boolean;
-  legalName?: string;
-  dateOfBirth?: string; // YYYY-MM-DD
-  error?: string;
+// ─── Local NIN format check (no NIMC lookup) ─────────────────────────
+/** 11 digits and not all the same digit. Purely local — does not prove the NIN exists. */
+export function checkNinFormat(nin: string): { ok: true } | { ok: false; error: string } {
+  const res = validateNIN(nin);
+  if (!res.valid) return { ok: false, error: res.error || 'NIN must be exactly 11 digits.' };
+  if (/^(\d)\1{10}$/.test(nin.replace(/\s/g, ''))) return { ok: false, error: 'That does not look like a valid NIN. Check the number and try again.' };
+  return { ok: true };
 }
 
-export async function mockVerifyNIN(nin: string, firstName: string, lastName: string): Promise<NinLookupResult> {
-  await sleep(1200);
-  if (!/^\d{11}$/.test(nin)) return { ok: false, error: 'NIN must be exactly 11 digits.' };
-  if (/^(\d)\1{10}$/.test(nin)) return { ok: false, error: 'No identity record found for this NIN.' };
-  const n = nin.split('').map(Number);
-  const year = 1965 + ((n[0] * 10 + n[1]) % 40);
-  const month = (n[2] * 10 + n[3]) % 12 + 1;
-  const day = (n[4] * 10 + n[5]) % 28 + 1;
-  const pad = (x: number) => String(x).padStart(2, '0');
-  return {
-    ok: true,
-    legalName: `${lastName.trim().toUpperCase()} ${firstName.trim()}`.trim(),
-    dateOfBirth: `${year}-${pad(month)}-${pad(day)}`,
-  };
-}
+/** Self-declared legal name in the `LASTNAME Firstname` convention. */
+export const formatLegalName = (firstName: string, lastName: string) =>
+  `${lastName.trim().toUpperCase()} ${firstName.trim()}`.trim();
 
-// ─── Mock NIBSS name enquiry ─────────────────────────────────────────
-export async function mockResolveAccount(bankCode: string, accountNumber: string, fallbackName: string) {
-  await sleep(900);
-  if (!bankCode || !/^\d{10}$/.test(accountNumber)) return { ok: false as const, error: 'Enter a valid 10-digit NUBAN.' };
-  if (/^(\d)\1{9}$/.test(accountNumber)) return { ok: false as const, error: 'Account not found at the selected bank.' };
-  return { ok: true as const, accountName: fallbackName.toUpperCase() };
-}
-
-// ─── Simulated SMS / WhatsApp OTP ────────────────────────────────────
-export function generatePhoneOtp(): string {
-  const buf = new Uint32Array(1);
-  crypto.getRandomValues(buf);
-  return String(100000 + (buf[0] % 900000));
-}
+/** Masked NIN for Firestore: `***` + last 4 digits (matches security rules). */
+export const maskNinForStorage = (nin: string) => `***${nin.replace(/\D/g, '').slice(-4)}`;

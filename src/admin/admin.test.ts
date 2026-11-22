@@ -8,7 +8,7 @@ import {
   can, isStaffRole, isValidRoleId, slugifyRoleId, roleLabel,
 } from './permissions';
 import { defaultSettings, normalizeSettings, isAnnouncementVisible, FEATURE_FLAGS } from './platformSettings';
-import { applyTaxRules, normalizeTaxRules, diffTaxYear, defaultTaxYears } from './taxRules';
+import { applyTaxRules, normalizeTaxRules, diffTaxYear, defaultTaxYears, toStoredTaxRules } from './taxRules';
 import { getTaxYearConfig, TAX_YEAR_CONFIGS } from '../nrs/taxYearConfig';
 import { WHT_RATE_SCHEDULE, getWHTRate } from '../utils/whtEngine';
 import { buildTransaction } from '../nrs/ledger';
@@ -74,11 +74,28 @@ describe('RBAC resolution', () => {
 });
 
 describe('platform settings', () => {
-  it('defaults enable every feature and keep maintenance off', () => {
+  it('defaults enable every ready feature, lock coming-soon ones off, and keep maintenance off', () => {
     const s = defaultSettings();
-    expect(FEATURE_FLAGS.every((f) => s.flags[f.id])).toBe(true);
+    expect(FEATURE_FLAGS.every((f) => s.flags[f.id] === !f.comingSoon)).toBe(true);
+    expect(s.flags.bankSync).toBe(false);
+    // A stored "on" value cannot re-enable a coming-soon (simulated) feature.
+    expect(normalizeSettings({ flags: { bankSync: true } }).flags.bankSync).toBe(false);
     expect(s.maintenance.enabled).toBe(false);
     expect(s.sessionPolicy).toEqual({ inactivityMinutes: 5, absoluteHours: 24 });
+  });
+  it('roles.manage is Super Admin only, even if a matrix grants it', () => {
+    const rbac = defaultRbac();
+    rbac.roles.content_manager.permissions = [...rbac.roles.content_manager.permissions, 'roles.manage'];
+    expect(can('content_manager', 'roles.manage', rbac)).toBe(false);
+    expect(can('super_admin', 'roles.manage', rbac)).toBe(true);
+  });
+  it('stores adviser sign-offs separately from figures and reads them back', () => {
+    const doc = normalizeTaxRules({ taxYears: { 2026: { vatRateBps: 750 } }, whtRates: {} });
+    doc.taxYears['2026'] = { ...doc.taxYears['2026'], verified: true, verifiedBy: 'Adviser LLP', verifiedOn: '2026-11-21' };
+    const stored = toStoredTaxRules(doc);
+    expect(stored.taxYears['2026']).toEqual({ vatRateBps: 750 });
+    expect(stored.signoffs['2026']).toEqual({ verified: true, verifiedBy: 'Adviser LLP', verifiedOn: '2026-11-21' });
+    expect(normalizeTaxRules(stored).taxYears['2026']).toMatchObject({ vatRateBps: 750, verified: true, verifiedBy: 'Adviser LLP' });
   });
   it('normalizes and clamps stored values', () => {
     const s = normalizeSettings({

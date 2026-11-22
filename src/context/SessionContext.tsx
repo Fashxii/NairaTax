@@ -56,6 +56,24 @@ export function clearPersistedSession(session: Pick<UserSession, 'contactMethod'
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.removeItem('adminRole');
   }
+  purgeUserCache(session);
+}
+
+/**
+ * Remove this user's cached taxpayer data (filings, invoices, payroll, NRS
+ * ledger…) from the browser. Firestore is the source of truth and re-hydrates
+ * it at the next sign-in, so nothing personal lingers on shared devices.
+ */
+export function purgeUserCache(session: Pick<UserSession, 'contactMethod'>): void {
+  const owner = (session.contactMethod || '').toLowerCase().trim();
+  if (!owner || isDemoSession(session) || typeof localStorage === 'undefined') return;
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('nairatax_') && k.endsWith(`:${owner}`))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 interface SessionContextValue {

@@ -1,37 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { BadgeCheck, Loader2, XCircle, Landmark, Briefcase, ShieldCheck, Pencil } from 'lucide-react';
+import { Controller, useFormContext } from 'react-hook-form';
+import { Landmark, Briefcase, ShieldCheck, Pencil } from 'lucide-react';
 import type { RegistrationValues } from '../../registration/schema';
 import { BANKS, INCOME_CATEGORIES, estimateRentRelief } from '../../registration/catalog';
 import { SIRS } from '../../registration/states';
-import { digitsOnly, formatNaira, mockResolveAccount } from '../../registration/services';
+import { digitsOnly, formatNaira } from '../../registration/services';
 import { Field, Select, TextInput } from './ui';
 
 export default function Step5Payout({ onEditStep }: { onEditStep: (i: number) => void }) {
-  const { register, control, setValue, getValues, clearErrors, formState: { errors } } = useFormContext<RegistrationValues>();
+  const { register, control, getValues, formState: { errors } } = useFormContext<RegistrationValues>();
   const e = errors.bank;
-  const [bankCode, accountNumber, accountName] = useWatch({ control, name: ['bank.bankCode', 'bank.accountNumber', 'bank.accountName'] });
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>(accountName ? 'ok' : 'idle');
-  const [lookupError, setLookupError] = useState('');
-  const reqId = useRef(0);
-
-  // Simulated NIBSS name enquiry whenever bank + 10-digit NUBAN are present.
-  useEffect(() => {
-    if (!bankCode || accountNumber.length !== 10) {
-      if (getValues('bank.accountName')) setValue('bank.accountName', '');
-      setStatus('idle');
-      return;
-    }
-    if (getValues('bank.accountName')) return; // already resolved for these values
-    const id = ++reqId.current;
-    setStatus('loading'); setLookupError('');
-    const { identity, auth } = getValues();
-    mockResolveAccount(bankCode, accountNumber, identity.legalName || `${auth.lastName} ${auth.firstName}`).then((res) => {
-      if (id !== reqId.current) return;
-      if (res.ok) { setValue('bank.accountName', res.accountName, { shouldDirty: true }); clearErrors('bank.accountName'); setStatus('ok'); }
-      else { setStatus('error'); setLookupError(res.error); }
-    });
-  }, [bankCode, accountNumber, getValues, setValue, clearErrors]);
 
   const v = getValues();
   const authority = SIRS[v.identity.state];
@@ -49,7 +26,7 @@ export default function Step5Payout({ onEditStep }: { onEditStep: (i: number) =>
     <div className="space-y-6">
       <div className="space-y-4">
         <Field label="Bank" htmlFor="reg-bank" error={e?.bankCode?.message}>
-          <Select id="reg-bank" invalid={!!e?.bankCode} {...register('bank.bankCode', { onChange: () => setValue('bank.accountName', '') })}>
+          <Select id="reg-bank" invalid={!!e?.bankCode} {...register('bank.bankCode')}>
             <option value="">Select your bank…</option>
             {BANKS.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
           </Select>
@@ -59,22 +36,15 @@ export default function Step5Payout({ onEditStep }: { onEditStep: (i: number) =>
             <TextInput id="reg-nuban" inputMode="numeric" autoComplete="off" placeholder="0123456789"
               className="font-mono tracking-[0.2em]" invalid={!!e?.accountNumber}
               value={field.value} ref={field.ref} onBlur={field.onBlur}
-              onChange={(ev) => { setValue('bank.accountName', ''); field.onChange(digitsOnly(ev.target.value, 10)); }} />
+              onChange={(ev) => field.onChange(digitsOnly(ev.target.value, 10))} />
           )} />
         </Field>
 
-        <div id="reg-account-name" aria-live="polite"
-          className={`flex items-center gap-2.5 h-12 px-4 rounded-xl border text-sm font-bold transition-all ${
-            status === 'ok' ? 'border-accent-green bg-accent-green/10 text-primary-container'
-              : status === 'error' || e?.accountName ? 'border-error/50 bg-error/5 text-error'
-              : 'border-dashed border-outline-variant text-on-surface-variant/70 font-medium'
-          }`}>
-          {status === 'loading' && <><Loader2 className="w-4 h-4 animate-spin" /> Resolving account name via NIBSS…</>}
-          {status === 'ok' && <><BadgeCheck className="w-4 h-4 text-accent-green" /> {accountName}</>}
-          {status === 'error' && <><XCircle className="w-4 h-4" /> {lookupError}</>}
-          {status === 'idle' && (e?.accountName ? e.accountName.message : 'Account name will appear here')}
-        </div>
-        <p className="text-[10px] text-on-surface-variant/70 -mt-2">Simulated NIBSS name enquiry. Used for tax refunds and payouts only.</p>
+        <Field label="Account name (exactly as shown by your bank)" htmlFor="reg-account-name" error={e?.accountName?.message}
+          hint="Used for tax refunds and payouts only. We don't check this with your bank — please double-check it.">
+          <TextInput id="reg-account-name" autoComplete="off" placeholder="e.g. OGUNLADE ADEBAYO"
+            invalid={!!e?.accountName} {...register('bank.accountName')} />
+        </Field>
       </div>
 
       {/* Review card */}

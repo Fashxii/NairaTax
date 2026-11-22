@@ -116,7 +116,7 @@ export default function SystemSettingsPanel() {
             {FEATURE_FLAGS.map((f) => (
               <label key={f.id} className={`flex items-start justify-between gap-3 p-3 border rounded-xl ${draft.flags[f.id] ? 'border-emerald-200 bg-emerald-50/40' : 'border-outline-variant/60 bg-surface-container-low'} ${canFlags ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}>
                 <span className="min-w-0">
-                  <span className="font-bold text-on-surface block">{f.label}</span>
+                  <span className="font-bold text-on-surface block">{f.label}{f.comingSoon && <span className="ml-2 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Coming soon</span>}</span>
                   <span className="text-[10px] text-on-surface-variant block">{f.description}</span>
                   <span className="text-[10px] text-primary-container/70 block mt-0.5">↳ {f.affects}</span>
                 </span>
@@ -124,7 +124,7 @@ export default function SystemSettingsPanel() {
                   type="checkbox"
                   role="switch"
                   checked={draft.flags[f.id]}
-                  disabled={!canFlags}
+                  disabled={!canFlags || f.comingSoon}
                   onChange={(e) => setDraft((d) => ({ ...d, flags: { ...d.flags, [f.id]: e.target.checked } }))}
                   className="mt-1 w-4 h-4 accent-[#013220]"
                 />

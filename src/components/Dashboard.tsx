@@ -652,7 +652,7 @@ export default function Dashboard() {
               <div>
                 <h4 className="text-sm font-bold text-amber-800">LIMITED ACCESS: Tax Identity Unlinked</h4>
                 <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                  Under the Unified Tax Act, you must link your National Identification Number (NIN) to enable automated filing. Currently, some premium services are restricted.
+                  Add your National Identification Number (NIN) to prepare self-assessment returns. Currently, some premium services are restricted.
                 </p>
               </div>
             </div>
@@ -676,7 +676,7 @@ export default function Dashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-outline-variant/40">
               <div>
                 <h2 className="text-2xl font-black text-primary-container tracking-tight">Review &amp; File Returns</h2>
-                <p className="text-xs text-on-surface-variant mt-0.5">Secure automated e-filing directly to the Federal Inland Revenue Service (FIRS).</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Prepare your return here, then file it on the NRS TaxProMax portal.</p>
               </div>
               
               {/* Stepper Wizard */}
@@ -804,7 +804,7 @@ export default function Dashboard() {
                 <div className="bg-white border border-outline-variant/60 rounded-xl p-5 shadow-xs space-y-4">
                   <h3 className="font-bold text-sm text-primary-container uppercase tracking-wider">2. Tax Liability Review</h3>
                   <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Verify these computations before submitting to FIRS. All figures are determined by statutory relief and progressive PIT band computations.
+                    Verify these computations before filing on the NRS TaxProMax portal. All figures are determined by statutory relief and progressive PIT band computations.
                   </p>
 
                   <div className="divide-y divide-outline-variant/20 text-xs">
@@ -827,7 +827,7 @@ export default function Dashboard() {
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div>
                           <span className="font-bold text-[10px] text-primary uppercase tracking-widest block">Final Tax Liability Owed</span>
-                          <p className="text-[10px] text-on-surface-variant">Payable via Nigerian Revenue Standards (NRS)</p>
+                          <p className="text-[10px] text-on-surface-variant">Payable via the Nigeria Revenue Service (NRS)</p>
                         </div>
                         <span className="text-2xl font-black text-primary-container font-mono">₦{fLiability.toLocaleString()}.00</span>
                       </div>

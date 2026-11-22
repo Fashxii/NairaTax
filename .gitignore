@@ -7,3 +7,8 @@ coverage/
 .env*
 !.env.example
 .firebase/
+
+functions/lib/
+functions/.env.local
+*.map
+

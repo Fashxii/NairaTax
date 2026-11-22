@@ -17,7 +17,7 @@ import { doc, onSnapshot, setDoc, type Unsubscribe } from 'firebase/firestore';
 import { auth, db, onAuthStateChanged } from '../lib/firebase';
 import { defaultRbac, normalizeRbac, type RbacConfig } from './permissions';
 import { defaultSettings, normalizeSettings, type PlatformSettings } from './platformSettings';
-import { applyTaxRules, emptyTaxRules, normalizeTaxRules, type TaxRulesDoc } from './taxRules';
+import { applyTaxRules, emptyTaxRules, normalizeTaxRules, toStoredTaxRules, type TaxRulesDoc } from './taxRules';
 
 type DocId = 'settings' | 'content' | 'tax_rules' | 'rbac';
 
@@ -163,7 +163,7 @@ export async function saveRbac(next: RbacConfig, actorEmail: string): Promise<vo
 }
 
 export async function saveTaxRules(next: TaxRulesDoc, actorEmail: string): Promise<void> {
-  await setDoc(doc(db, 'platform_config', 'tax_rules'), stamp({ taxYears: next.taxYears, whtRates: next.whtRates }, actorEmail));
+  await setDoc(doc(db, 'platform_config', 'tax_rules'), stamp(toStoredTaxRules(next), actorEmail));
 }
 
 export async function saveContent(content: object, actorEmail: string): Promise<void> {
