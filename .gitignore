@@ -11,4 +11,5 @@ coverage/
 functions/lib/
 functions/.env.local
 *.map
+backups/
 

@@ -33,7 +33,38 @@
       {
         "source": "/assets/**",
         "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
+        ]
+      },
+      {
+        "source": "/admin**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
+        ]
+      },
+      {
+        "source": "/dashboard**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
+        ]
+      },
+      {
+        "source": "/verify**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
+        ]
+      },
+      {
+        "source": "/compliance**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
+        ]
+      },
+      {
+        "source": "/register**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive, nosnippet" }
         ]
       },
       {

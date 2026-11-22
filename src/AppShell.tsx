@@ -73,6 +73,22 @@ export default function AppShell() {
     }
   }, [theme]);
 
+  // Search-engine protection: never let crawlers index the raw Firebase Hosting
+  // domain (*.web.app / *.firebaseapp.com) or any authenticated/admin route.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const host = window.location.hostname.toLowerCase();
+    const isCloudDefaultDomain = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
+    const isPublicLanding = location.pathname === '/' && !isCloudDefaultDomain;
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'robots';
+      document.head.appendChild(meta);
+    }
+    meta.content = isPublicLanding ? 'index, follow' : 'noindex, nofollow, noarchive, nosnippet';
+  }, [location.pathname]);
+
   const isLoggingOutRef = useRef(false);
 
   // Auto-redirect: if authenticated and on gateway, go to dashboard (unless user just logged out)
