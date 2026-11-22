@@ -71,6 +71,16 @@
   color: var(--color-primary) !important;
 }
 
+/* Solid bright-green (#4ADE80 / accent-green) buttons & badges must keep dark text in dark mode */
+.dark .bg-\[\#4ADE80\],
+.dark .bg-accent-green,
+.dark .bg-\[\#4ADE80\] .text-\[\#013220\],
+.dark .bg-accent-green .text-\[\#013220\],
+.dark .bg-\[\#4ADE80\] .text-primary-container,
+.dark .bg-accent-green .text-primary-container {
+  color: #001b0f !important;
+}
+
 .dark .bg-\[\#013220\],
 .dark .bg-primary-container {
   background-color: var(--color-primary-container) !important;

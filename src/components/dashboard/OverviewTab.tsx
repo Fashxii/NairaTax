@@ -304,10 +304,11 @@ const OverviewTab = memo(function OverviewTab({
 
             <button
               onClick={onStartFiling}
-              className="w-full py-3 bg-[#4ADE80] hover:bg-[#4ADE80]/90 text-[#013220] rounded-lg font-black text-xs uppercase tracking-wider active:scale-95 transition-transform flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+              className="w-full py-3.5 px-4 bg-[#4ADE80] hover:bg-[#3bca70] text-emerald-950 border border-white/30 rounded-xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center space-x-2 shadow-md cursor-pointer"
             >
-              <FileText className="w-4.5 h-4.5" />
+              <FileText className="w-4 h-4 stroke-[2.5]" />
               <span>Start Annual Filing</span>
+              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
         </div>

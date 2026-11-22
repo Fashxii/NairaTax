@@ -562,7 +562,7 @@ export default function Gateway() {
               </div>
 
               <div className="p-4 bg-[#013220]/5 rounded-xl border border-[#013220]/20 text-left relative overflow-hidden">
-                <div className="absolute top-2 right-2 bg-accent-green text-[#013220] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                <div className="absolute top-2 right-2 bg-accent-green text-emerald-950 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
                   Optimized
                 </div>
                 <span className="text-[10px] font-bold text-primary-container uppercase tracking-wider">With DIYtax9ja Reliefs</span>
