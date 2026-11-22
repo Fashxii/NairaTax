@@ -195,12 +195,8 @@ export default function RegistrationWizard() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-outline-variant">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <button type="button" id="reg-exit" onClick={() => navigate('/')} className="flex items-center gap-2 cursor-pointer" aria-label="Back to home">
-            <svg viewBox="0 0 200 200" className="w-8 h-8" aria-hidden>
-              <rect width="200" height="200" rx="44" fill="#013220" />
-              <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white" />
-              <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round" />
-            </svg>
+          <button type="button" id="reg-exit" onClick={() => navigate('/')} className="flex items-center gap-2.5 cursor-pointer" aria-label="Back to home">
+            <img src="/logo-transparent.png" alt="" className="w-9 h-9 object-contain" aria-hidden />
             <span className="font-extrabold text-lg text-primary-container tracking-tight">DIYtax9ja</span>
           </button>
           <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" aria-live="polite">

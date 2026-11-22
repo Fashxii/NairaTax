@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Megaphone, Save, Lock, Eye } from 'lucide-react';
+import { Megaphone, Save, Lock, Eye, Download, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '../Toast';
 import CMSManager from '../CMSManager';
 import SeoSitemapManager from './SeoSitemapManager';
@@ -111,10 +111,73 @@ function AnnouncementEditor() {
   );
 }
 
+const BRAND_ASSETS = [
+  { file: 'logo-transparent.png', downloadAs: 'DIYtax9ja-logo-icon-transparent.png', label: 'Icon Only (Transparent PNG)' },
+  { file: 'logo.png', downloadAs: 'DIYtax9ja-logo-icon.png', label: 'Icon Only (White BG PNG)' },
+  { file: 'logo-full-transparent.png', downloadAs: 'DIYtax9ja-logo-full-transparent.png', label: 'Full Wordmark (Transparent PNG)' },
+  { file: 'logo-full.png', downloadAs: 'DIYtax9ja-logo-full.png', label: 'Full Wordmark (White BG PNG)' },
+  { file: 'diytax9ja-logos-png.zip', downloadAs: 'DIYtax9ja-logos-png.zip', label: 'All 4 PNGs (ZIP Bundle)' },
+];
+
+function BrandAssetsCard() {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const triggerDownload = async (file: string, downloadAs: string) => {
+    setBusy(file);
+    try {
+      const res = await fetch(`/${file}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadAs;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('success', 'Download started', `Saved ${downloadAs}`);
+    } catch {
+      showToast('error', 'Download failed', 'Could not download the file.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4">
+      <div>
+        <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+          <ImageIcon className="w-5 h-5 text-primary-container" /> Brand Logo Assets (PNG Downloads)
+        </h3>
+        <p className="text-xs text-on-surface-variant">
+          One-click downloadable PNG versions of the DIYtax9ja icon and full wordmark logo (transparent and white backgrounds).
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        {BRAND_ASSETS.map((item) => (
+          <button
+            key={item.file}
+            type="button"
+            disabled={busy === item.file}
+            onClick={() => triggerDownload(item.file, item.downloadAs)}
+            className="h-11 px-3.5 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-emerald-50 hover:border-emerald-300 text-xs font-bold text-primary-container flex items-center justify-between gap-2 cursor-pointer transition-all"
+          >
+            <span className="truncate">{item.label}</span>
+            <Download className="w-4 h-4 shrink-0 text-accent-green" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ContentPanel() {
   const { can } = usePermissions();
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <BrandAssetsCard />
       <SeoSitemapManager />
       {can('announcements.manage') || can('cms.edit') ? <AnnouncementEditor /> : null}
       <CMSManager />

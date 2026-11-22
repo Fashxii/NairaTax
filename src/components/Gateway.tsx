@@ -143,17 +143,11 @@ export default function Gateway() {
         <div className="flex items-center space-x-12 max-w-7xl mx-auto w-full">
           {/* Logo */}
           <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            {content.gateway.logoUrl ? (
-              <img src={content.gateway.logoUrl} alt="Logo" className="h-10 object-contain" />
-            ) : (
-              <div className="w-10 h-10">
-                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                  <rect width="200" height="200" rx="44" fill="#013220"/>
-                  <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-                  <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-                </svg>
-              </div>
-            )}
+            <img
+              src={content.gateway.logoUrl || '/logo-transparent.png'}
+              alt="DIYtax9ja Logo"
+              className="h-11 w-auto object-contain"
+            />
             <span className="font-extrabold text-2xl text-primary-container tracking-tight">DIYtax9ja</span>
           </div>
 
@@ -763,14 +757,12 @@ export default function Gateway() {
           
           {/* Brand Col */}
           <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8">
-                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                  <rect width="200" height="200" rx="44" fill="#013220"/>
-                  <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-                  <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-                </svg>
-              </div>
+            <div className="flex items-center space-x-2.5">
+              <img
+                src={content.gateway.logoUrl || '/logo-transparent.png'}
+                alt="DIYtax9ja Logo"
+                className="h-10 w-auto object-contain"
+              />
               <span className="font-extrabold text-lg text-primary-container tracking-tight">DIYtax9ja</span>
             </div>
             <p className="text-xs text-on-surface-variant max-w-sm leading-relaxed">

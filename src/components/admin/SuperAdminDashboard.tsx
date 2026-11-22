@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard, Users, KeyRound, Sliders, Scale, Megaphone, Shield, FileText, Mail,
-  LogOut, Sun, Moon, ShieldAlert, Settings, Layers, BarChart3,
+  LogOut, Sun, Moon, Settings, Layers, BarChart3,
 } from 'lucide-react';
 import { useAppContext } from '../../AppShell';
 import { getDisplayName } from '../../utils/userScope';
@@ -72,8 +72,8 @@ export default function SuperAdminDashboard() {
       <header className="bg-primary-container text-white px-6 py-4 shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-accent-green/20 border border-accent-green/40 flex items-center justify-center">
-              <ShieldAlert className="w-5 h-5 text-accent-green" />
+            <div className="w-9 h-9 rounded-xl bg-white p-1 flex items-center justify-center shadow-xs">
+              <img src="/logo-transparent.png" alt="DIYtax9ja" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center space-x-2">

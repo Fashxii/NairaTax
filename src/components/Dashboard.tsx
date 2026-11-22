@@ -485,11 +485,7 @@ export default function Dashboard() {
           {/* Dashboard Branding */}
           <div className="px-6 flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
-              <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
-                <rect width="200" height="200" rx="44" fill="#013220"/>
-                <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-                <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-              </svg>
+              <img src="/logo-transparent.png" alt="DIYtax9ja" className="w-9 h-9 object-contain" />
               <span className="font-extrabold text-primary-container text-lg tracking-tight">DIYtax9ja</span>
             </div>
             

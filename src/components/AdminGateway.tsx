@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ShieldAlert, ArrowLeft, Sun, Moon, Lock, AlertCircle, MailCheck } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Sun, Moon, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../AppShell';
 import { useSession } from '../context/SessionContext';
 import { useNavigate } from 'react-router-dom';
@@ -138,9 +138,7 @@ export default function AdminGateway() {
           className="w-full max-w-md bg-white p-8 rounded-2xl border border-outline-variant shadow-lg space-y-6 text-left"
         >
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-error/10 text-error rounded-2xl flex items-center justify-center mx-auto mb-4">
-              {step === 'email' ? <Lock className="w-8 h-8" /> : <MailCheck className="w-8 h-8" />}
-            </div>
+            <img src="/logo-full-transparent.png" alt="DIYtax9ja" className="h-20 w-auto object-contain mx-auto mb-2" />
             <h2 className="text-2xl font-black text-primary-container tracking-tight">System Access</h2>
             <p className="text-sm text-on-surface-variant">
               {step === 'email'

@@ -155,12 +155,8 @@ export default function Verification() {
         >
           <ArrowLeft className="w-5 h-5 text-primary-container" />
         </button>
-        <div className="flex items-center gap-2">
-          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8">
-            <rect width="200" height="200" rx="44" fill="#013220"/>
-            <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-            <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-          </svg>
+        <div className="flex items-center gap-2.5">
+          <img src="/logo-transparent.png" alt="DIYtax9ja" className="w-9 h-9 object-contain" />
           <span className="font-bold text-primary-container text-lg">DIYtax9ja</span>
         </div>
         <div className="w-10"></div> {/* Spacer for symmetry */}

@@ -40,12 +40,8 @@ export default function ComplianceLink() {
     >
       {/* Top Bar Indicators */}
       <header className="w-full flex justify-between items-center pb-6 mb-6">
-        <div className="flex items-center gap-2">
-          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
-            <rect width="200" height="200" rx="44" fill="#013220"/>
-            <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white"/>
-            <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round"/>
-          </svg>
+        <div className="flex items-center gap-2.5">
+          <img src="/logo-transparent.png" alt="DIYtax9ja" className="w-9 h-9 object-contain" />
           <span className="font-bold text-primary-container">DIYtax9ja</span>
         </div>
         <span className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase bg-surface-container px-3 py-1.5 rounded-full border border-outline-variant/30">

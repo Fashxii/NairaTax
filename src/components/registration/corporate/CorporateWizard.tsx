@@ -190,12 +190,8 @@ export default function CorporateWizard() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-grow w-full bg-background">
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-outline-variant">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <button type="button" id="corp-exit" onClick={() => navigate('/')} className="flex items-center gap-2 cursor-pointer" aria-label="Back to home">
-            <svg viewBox="0 0 200 200" className="w-8 h-8" aria-hidden>
-              <rect width="200" height="200" rx="44" fill="#013220" />
-              <path d="M60 140V60H85L115 110V60H140V140H115L85 90V140H60Z" fill="white" />
-              <path d="M70 152H130" stroke="#4ADE80" strokeWidth="8" strokeLinecap="round" />
-            </svg>
+          <button type="button" id="corp-exit" onClick={() => navigate('/')} className="flex items-center gap-2.5 cursor-pointer" aria-label="Back to home">
+            <img src="/logo-transparent.png" alt="" className="w-9 h-9 object-contain" aria-hidden />
             <span className="font-extrabold text-lg text-primary-container tracking-tight">DIYtax9ja</span>
             <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest text-on-surface-variant border border-outline-variant rounded-full px-2 py-0.5 ml-1">Business</span>
           </button>

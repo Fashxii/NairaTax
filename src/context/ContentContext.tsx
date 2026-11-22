@@ -35,7 +35,7 @@ const defaultContent: AppContent = {
     heroTitleLine2: "Automated, Simplified, 100% Compliant.",
     heroDescription: "File PIT & CIT, automatically scan receipts into Naira, unlock statutory deductions (pension, NHF, NHIS, life assurance), and authorize direct secure payments to the Nigerian Revenue Service in seconds.",
     heroImage: "",
-    logoUrl: "",
+    logoUrl: "/logo-transparent.png",
     navCtaText: "File Tax Return",
     heroCta1Text: "Try Free Tax Planner",
     heroCta2Text: "Calculate Your Reliefs",
